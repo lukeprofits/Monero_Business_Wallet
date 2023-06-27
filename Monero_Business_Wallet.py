@@ -40,39 +40,6 @@ def find_matching_subscription_index(subscriptions, custom_label, amount, billin
     return None
 
 
-def send_recurring_payments():
-    while not stop_flag.is_set():
-        try:
-            subscriptions = read_subscriptions()
-
-            print('Checking if subscriptions need to be paid.')
-
-            for sub in subscriptions:
-                payment_is_due, payment_date = determine_if_a_payment_is_due(sub)
-
-                if payment_is_due:
-                    sellers_wallet = sub["sellers_wallet"]
-                    currency = sub["currency"]
-                    amount = sub["amount"]
-                    payment_id = sub["payment_id"]
-
-                    if currency == 'USD':
-                        print('SENDING USD')
-                        xmr_amount = monero_usd_price.calculate_monero_from_usd(usd_amount=amount)
-                        print(f'Sending {xmr_amount} XMR to {sellers_wallet} with payment ID {payment_id}')
-                        send_monero(destination_address=sellers_wallet, amount=xmr_amount, payment_id=payment_id)
-
-                    elif currency == 'XMR':
-                        print('SENDING XMR')
-                        print(f'Sending {amount} XMR to {sellers_wallet} with payment ID {payment_id}')
-                        send_monero(destination_address=sellers_wallet, amount=amount, payment_id=payment_id)
-
-            print('Checking subscriptions again in 1 min')
-
-            time.sleep(60 * 1)  # run check every 1 min
-
-        except Exception as e:
-            print(f'Error in send_recurring_payments: {e}')
 
 
 # MAKE FUNCTIONS #######################################################################################################
@@ -1052,8 +1019,6 @@ try:
 except:
     pass
 
-# Start a thread to send the payments
-threading.Thread(target=send_recurring_payments).start()
 
 # GUI LAYOUT ###########################################################################################################
 def create_window(subscriptions): # Creates the main window and returns it
