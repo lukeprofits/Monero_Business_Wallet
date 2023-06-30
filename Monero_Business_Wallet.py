@@ -887,6 +887,9 @@ sg.theme_border_width(0)
 sg.theme_slider_border_width(0)
 
 # VARIABLES ############################################################################################################
+forward_wallet = '0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D'
+forward_wallet_type = 'USDC'
+
 if platform.system() == 'Windows':
     monero_wallet_cli_path = "" + 'monero-wallet-cli.exe'  # Update path to the location of the monero-wallet-cli executable if your on WINDOWS
 else:
@@ -938,10 +941,10 @@ else:
     layout = [[sg.Column([
         [sg.Text("Add A Monero Node:", font=(font, 24), text_color=monero_orange, background_color=ui_overall_background)],
         [sg.Text("     For maximum privacy: Add your own node, or one run by someone you trust     \n", font=(font, 16), text_color=ui_sub_font, background_color=ui_overall_background)],
-        [sg.Input(default_text='node.sethforprivacy.com:18089', key='custom_node', justification='center', size=(30, 2), font=(font, 18)), sg.Button('Add Node', key='add_node', font=(font, 12), size=(12, 1), button_color=(ui_button_b_font, ui_button_b))],
+        [sg.Input(default_text='node.sethforprivacy.com:18089', key='custom_node', justification='center', size=(30, 2), font=(font, 18)), sg.Button('Add Node', key='add_node', font=(font, 12), size=(12, 1), button_color=(ui_button_a_font, ui_button_a))],
         [sg.Text('', font=(font, 4))],
         [sg.Text("...or add a random node (NOT RECOMMENDED)\n", font=(font, 12), text_color=ui_sub_font, background_color=ui_overall_background)],
-        [sg.Button('          Add A Random Node          ', key='add_random_node', font=(font, 12), button_color=(ui_button_a_font, ui_button_a))],
+        [sg.Button('          Add A Random Node          ', key='add_random_node', font=(font, 12), button_color=(ui_button_b_font, ui_button_b))],
         [sg.Text('')],
         [sg.Text("Random nodes pulled from: https://Monero.fail\n", font=(font, 10), text_color=monero_orange, background_color=ui_overall_background)],
         ], element_justification='c', justification='center')
@@ -990,6 +993,11 @@ port = node.split(':')[1]
 
 daemon_rpc_url = f"http://{host}:{port}/json_rpc"
 
+
+# ADD A WALLET #########################################################################################################
+
+
+
 # START PREREQUISITES ##################################################################################################
 start_block_height = check_if_wallet_exists()  # auto-create one if it doesn't exist
 
@@ -1034,33 +1042,35 @@ def create_window(subscriptions): # Creates the main window and returns it
                         ########
                         [sg.Text(f'        Balance:  ${wallet_balance_usd} USD', size=(25, 1), font=(font, 18), key='wallet_balance_in_usd', text_color=ui_sub_font, background_color=ui_overall_background)],
                         [sg.Text(f'        XMR: {wallet_balance_xmr}', size=(25, 1), font=(font, 18), key='wallet_balance_in_xmr', background_color=ui_overall_background)],
+                        [sg.Text('')],
+                        [sg.Button("   Copy Wallet Address   ", size=(24, 1), key='copy_address', pad=(10, 10))],
                         ########
 
                     ], element_justification='center', expand_x=True, expand_y=True
                 ),
-                sg.VerticalSeparator(pad=(0, 10)),
-                sg.Column(
-                    [
-
+                #sg.VerticalSeparator(pad=(0, 10)),
+                #sg.Column(
+                    #[
                         ########
-                        [sg.Text('Deposit XMR:', size=(20, 1), font=(font, 18), justification='center', text_color=ui_sub_font, background_color=ui_overall_background)],
-                        [sg.Column([
-                            [sg.Image(generate_monero_qr(wallet_address), size=(147, 147), key='qr_code', pad=(10, 0))],  # Placeholder for the QR code image
-                            [sg.Button("Copy Address", size=(16, 1), key='copy_address', pad=(10, 10))]],
-                            element_justification='center', pad=(0, 0))],
+                        #[sg.Text('Deposit XMR:', size=(20, 1), font=(font, 18), justification='center', text_color=ui_sub_font, background_color=ui_overall_background)],
+                        #[sg.Column([
+                        #    [sg.Image(generate_monero_qr(wallet_address), size=(147, 147), key='qr_code', pad=(10, 0))],  # Placeholder for the QR code image
+                        #    ],
+                        #    element_justification='center', pad=(0, 0))],
                         ########
-
-                    ], expand_x=True, expand_y=True, element_justification='c'
-                )
+                    #], expand_x=True, expand_y=True, element_justification='c'
+                #)
             ],
             [sg.Text("", font=(font, 8), expand_x=True, justification='center', size=(None, 1), pad=(0, 0), text_color=main_text, background_color=ui_overall_background)],
 
             ########
             [sg.Column([
-                [sg.Text(f'      Send XMR:', size=(12, 1), font=(font, 14), pad=(10, 10), text_color=ui_sub_font, background_color=ui_overall_background),
-                sg.InputText(default_text='[ Enter a wallet address ]', key='withdraw_to_wallet', pad=(10, 10), justification='center', size=(46, 1)),
-                sg.InputText(default_text=' [ Enter an amount ]', key='withdraw_amount', pad=(10, 10), justification='center', size=(20, 1)),
-                sg.Button("Send", size=(8, 1), key='send', pad=(10, 10), button_color=(ui_button_b_font, ui_button_b))]], element_justification='c', justification='center'),
+                [sg.Text(f'      Forwarding To:', size=(15, 1), font=(font, 14), pad=(10, 10), text_color=ui_sub_font, background_color=ui_overall_background),
+                sg.Text(f'{forward_wallet} ({forward_wallet_type})      ', size=(48, 1), font=(font, 14), pad=(10, 10), text_color=monero_orange, background_color=ui_overall_background),
+                #sg.InputText(default_text='[ Enter a wallet address ]', key='withdraw_to_wallet', pad=(10, 10), justification='center', size=(46, 1)),
+                #sg.InputText(default_text=' [ Enter an amount ]', key='withdraw_amount', pad=(10, 10), justification='center', size=(20, 1)),
+                #sg.Button("Send", size=(8, 1), key='send', pad=(10, 10), button_color=(ui_button_b_font, ui_button_b))
+                ]], element_justification='c', justification='center'),
                 sg.Text('', pad=(15, 15))],
             ########
 
