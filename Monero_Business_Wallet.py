@@ -16,6 +16,9 @@ from datetime import datetime
 import platform
 import clipboard
 
+import Swap_Service_Integrations as swap
+# EXAMPLE: swap.with_sideshift()
+
 
 
 # OVERALL FUNCTIONS ####################################################################################################
