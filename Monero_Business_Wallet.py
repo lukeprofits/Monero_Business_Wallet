@@ -25,22 +25,13 @@ import Swap_Service_Integrations as swap
 def kill_everything():
     global stop_flag
 
-    print('\n\n Please close this terminal window and relaunch the Monero Subscriptions Wallet')
+    print('\n\n Please close this terminal window and relaunch the Monero Business Wallet')
 
     stop_flag.set()  # Stop threads gracefully
 
     # Kill the program
     current_process = psutil.Process(os.getpid())  # Get the current process ID
     current_process.terminate()  # Terminate the current process and its subprocesses
-
-
-def find_matching_subscription_index(subscriptions, custom_label, amount, billing_cycle_days):
-    for index, subscription in enumerate(subscriptions):
-        if (subscription['custom_label'] == custom_label and
-            subscription['amount'] == amount and
-            subscription['billing_cycle_days'] == billing_cycle_days):
-            return index
-    return None
 
 
 
@@ -74,64 +65,6 @@ def make_integrated_address(payment_id, merchant_public_wallet_address):
     else:
         integrated_address = result['result']['integrated_address']
         return integrated_address
-
-
-def make_subscription_code(json_data):
-    # Convert the JSON data to a string
-    json_str = json.dumps(json_data)
-
-    # Compress the string using gzip compression
-    compressed_data = gzip.compress(json_str.encode('utf-8'))
-
-    # Encode the compressed data into a Base64-encoded string
-    encoded_str = base64.b64encode(compressed_data).decode('ascii')
-
-    # Add the Monero Subscription identifier
-    monero_subscription = 'monero-subscription:' + encoded_str
-
-    return monero_subscription
-
-
-def create_subscription(custom_label='Subscription', payment_id='', sellers_wallet='', currency='', amount=0.00, billing_cycle_days=None, start_date=None):
-    if check_if_payment_id_is_valid(payment_id):
-        if check_if_monero_wallet_address_is_valid_format(sellers_wallet):
-            if check_if_currency_is_supported(currency):
-                if check_if_amount_is_proper_format(amount):
-                    if type(billing_cycle_days) == int:
-                        if not start_date:
-                            subscription = {
-                                "custom_label": custom_label,
-                                "sellers_wallet": sellers_wallet,
-                                "currency": currency,
-                                "amount": amount,
-                                "payment_id": payment_id,
-                                "start_date": datetime.now().strftime("%Y-%m-%d"),
-                                "billing_cycle_days": billing_cycle_days
-                                }
-                            return subscription
-
-                        else:  # if we added a start date
-                            subscription = {
-                                "custom_label": custom_label,
-                                "sellers_wallet": sellers_wallet,
-                                "currency": currency,
-                                "amount": amount,
-                                "payment_id": payment_id,
-                                "start_date": start_date,
-                                "billing_cycle_days": billing_cycle_days
-                            }
-                            return subscription
-
-                    else:
-                        print(f'Not a valid number of days: {billing_cycle_days}')
-                else:
-                    print(f'Not a valid amount: {amount}')
-            else:
-                print(f'Not a supported currency: {currency}')
-        else:
-            print(f'Not a valid seller_wallet: {sellers_wallet}')
-    else:
-        print(f'Not a valid payment ID: {payment_id}')
 
 
 def create_wallet(wallet_name):  # Using CLI Wallet
@@ -172,7 +105,7 @@ def create_wallet(wallet_name):  # Using CLI Wallet
         print(f'seed: {seed}')
 
         with open(file=f'{wallet_name}_seed.txt', mode='a', encoding='utf-8') as f:
-            f.write(f'Wallet Address:\n{wallet_address}\nView Key:\n{view_key}\nSeed:\n{seed}\n\nThe above wallet should not be your main source of funds. This is ONLY to be a side account for paying monthly subscriptions. If anyone gets access to this seed, they can steal all your funds. Please use responsibly.\n\n\n\n')
+            f.write(f'Wallet Address:\n{wallet_address}\nView Key:\n{view_key}\nSeed:\n{seed}\n\nThe above wallet should not be your main source of funds. This is ONLY to be a side account for recording and auto-forwarding payments. If anyone gets access to this seed, they can steal all your funds. Please use responsibly.\n\n\n\n')
 
         return seed, wallet_address, view_key
     else:
@@ -211,36 +144,6 @@ def check_if_wallet_exists():
         # If both files exist, do nothing
         print('Wallet exists already.')
         return None
-
-
-def check_date_for_how_many_days_until_payment_needed(date, number_of_days):
-    # Returns the number of days left.
-
-    # if subscription start date is in the future
-    if datetime.now() <= date:
-        number_of_days = 0
-
-    # Calculate the time difference in hours
-    hours_difference = (datetime.now() - date).total_seconds() / (60 * 60)
-
-    # Calculate the hours left
-    hours_left = (number_of_days * 24) - hours_difference
-
-    # Calculate the days left
-    days_left = hours_left / 24
-
-    # print(f'Days Left: {days_left}')
-    # print(f'Hours Left: {hours_left}')
-
-    return days_left
-
-
-def check_if_currency_is_supported(currency):
-    # add more in the future as needed
-    if currency == 'USD' or currency == 'XMR':
-        return True
-    else:
-        return False
 
 
 def check_if_amount_is_proper_format(amount):
@@ -312,81 +215,6 @@ def check_if_payment_id_is_valid(payment_id):
 
     # If it passed all these checks
     return True
-
-
-def determine_if_a_payment_is_due(subscription):
-    global local_rpc_url
-
-    try:  # Get all outgoing transfers from the wallet
-        headers = {"Content-Type": "application/json"}
-        data = {
-            "jsonrpc": "2.0",
-            "id": "0",
-            "method": "get_transfers",
-            "params": {"out": True},
-        }
-
-        # Get outgoing payments
-        response = requests.post(local_rpc_url, headers=headers, data=json.dumps(data))
-        transfers = response.json()["result"]["out"]
-
-    except Exception as e:
-        print(f"Error querying Monero RPC: {e}")
-        return False, ''
-
-    #print(f"Transfers: {transfers}")
-
-    # Check each of them
-    for t in transfers:
-        if 'destinations' in t and 'payment_id' in t and 'timestamp' in t:  # if it has all the fields we are checking
-            payment_id = t['payment_id']
-            dest_address = t['destinations'][0]['address']  # we are reading the addresses. DO NOT convert to integrated
-            transaction_date = t['timestamp']
-            transaction_date = datetime.fromtimestamp(transaction_date)
-            #print(f'\nFOUND: {payment_id}, {dest_address}, {transaction_date}\n')
-            if payment_id == subscription["payment_id"] and dest_address == make_integrated_address(payment_id=payment_id, merchant_public_wallet_address=subscription["sellers_wallet"]):
-                # Check the date. See if it happened this billing cycle.
-                days_left = check_date_for_how_many_days_until_payment_needed(transaction_date, subscription["billing_cycle_days"])
-                if days_left > 0:  # renew when subscription expires
-                    print(f'Found a payment on {transaction_date}. No payment is due.')
-                    return False, transaction_date  # It was this billing cycle. Payment is NOT due.
-
-    # if today's date is before the subscription start date
-    subscription_start_date = datetime.strptime(subscription["start_date"], "%Y-%m-%d")
-    if datetime.now() <= subscription_start_date:
-        return False, subscription_start_date
-
-    # If we made it here without finding a payment this month, a payment is due.
-    print('Did not find a payment. A payment is due.')
-    return True, ''
-
-
-# CONVERSION FUNCTIONS #################################################################################################
-def decode_monero_subscription_code(monero_subscription_code):
-    # Catches user error. Code can start with "monero_subscription:", or ""
-    code_parts = monero_subscription_code.split('-subscription:')
-
-    if len(code_parts) == 2:
-        monero_subscription_data = code_parts[1]
-    else:
-        monero_subscription_data = code_parts[0]
-
-    # Extract the Base64-encoded string from the second part of the code
-    encoded_str = monero_subscription_data
-
-    # Decode the Base64-encoded string into bytes
-    compressed_data = base64.b64decode(encoded_str.encode('ascii'))
-
-    # Decompress the bytes using gzip decompression
-    json_bytes = gzip.decompress(compressed_data)
-
-    # Convert the decompressed bytes into a JSON string
-    json_str = json_bytes.decode('utf-8')
-
-    # Parse the JSON string into a Python object
-    subscription_data_as_json = json.loads(json_str)
-
-    return subscription_data_as_json
 
 
 # RPC FUNCTIONS ########################################################################################################
@@ -589,45 +417,6 @@ def send_monero(destination_address, amount, payment_id=None):
 
 
 # GUI FUNCTIONS ########################################################################################################
-
-def create_subscription_rows(subscriptions):
-    result = []
-
-    for i, sub in enumerate(subscriptions):
-        amount = sub["amount"]
-        custom_label = sub['custom_label']
-        renews_in = sub["billing_cycle_days"]
-        currency = sub["currency"]
-
-        payment_is_due, payment_date = determine_if_a_payment_is_due(sub)  # hopefully this does not make booting slow
-
-        if not payment_is_due and payment_date:
-            days = check_date_for_how_many_days_until_payment_needed(date=payment_date, number_of_days=renews_in)
-            renews_in = round(days)
-
-        if currency == 'USD':
-            currency_indicator_left = '$'
-            currency_indicator_right = ' USD'
-
-        elif currency == 'XMR':
-            currency_indicator_left = ''
-            currency_indicator_right = ' XMR'
-
-        else:
-            currency_indicator_left = ''
-            currency_indicator_right = currency
-
-        row = [
-            sg.Text(f'    {currency_indicator_left}{amount}{currency_indicator_right}', justification='left', size=(12, 1), text_color=subscription_text_color, background_color=subscription_background_color),
-            sg.Column([[sg.Text((custom_label + ''), justification='center', size=(None, 1), text_color=subscription_text_color, background_color=subscription_background_color)]], expand_x=True),
-            sg.Text(f'Renews in {renews_in} day(s)', justification='right', size=(16, 1), text_color=subscription_text_color, background_color=subscription_background_color),
-            sg.Button("Cancel", size=(7, 1), key=f'cancel_subscription_{i}', button_color=(ui_regular, ui_barely_visible)),
-        ]
-        result.append(row)
-
-    return result
-
-
 def update_gui_balance():
     global wallet_balance_xmr, wallet_balance_usd, wallet_address
 
@@ -649,38 +438,6 @@ def update_gui_balance():
             print(f'Exception in thread "update_gui_balance: {e}"')
 
 
-def read_subscriptions():
-    global subs_file_path
-
-    if not os.path.exists(subs_file_path):
-        return []
-
-    with open(subs_file_path, "r") as file:
-        subscriptions = json.load(file)
-
-    # Sort subscriptions by billing_cycle_days
-    subscriptions.sort(key=lambda x: x['billing_cycle_days'])
-
-    return subscriptions
-
-
-def add_subscription(subscription):
-    global subs_file_path
-    if subscription:
-        subscriptions = read_subscriptions()
-        subscriptions.append(subscription)
-        with open(subs_file_path, "w") as file:
-            json.dump(subscriptions, file, indent=2)
-        refresh_gui()
-
-
-def remove_subscription(subscriptions_list):
-    subscriptions = subscriptions_list
-
-    with open(subs_file_path, "w") as file:
-        json.dump(subscriptions, file, indent=2)
-
-
 def make_transparent():
     # Make the main window transparent
     window.TKroot.attributes('-alpha', 0.00)
@@ -689,141 +446,6 @@ def make_transparent():
 def make_visible():
     # Make the main window transparent
     window.TKroot.attributes('-alpha', 1.00)
-
-
-def add_subscription_from_merchant():
-    global subscriptions, subscription_rows
-
-    #dev_sub_code = 'monero-subscription:H4sIACsJZGQC/12OXU+DMBSG/wrh2pkCAzPvYICJRhO36eZuSFvOBrEfpC3T1vjfbXfpuTrnfZ/kOT8xnbWRvGOYAIvvo3iPGQMT1XABJidQUS0FNqMU8U0Ua/Cl0t3XFQr4sjTZIVeXdzvt5OnMZ3hZ6dWrUa7fQF7N0Cr9WR7H5K6SH2RwVkvn5HNbFW4vdk/9w7oov5uSNE1OXbvJBr89Es2XwxoO6TZI6awUCGqD7m1bhwhzOYvgT9At8veELQdhurEPEPo3188NVqbrsYFApCjNFihfJEXoyMjYKM4dtZSBZ6z2TIZ+/wAVPrHVHQEAAA=='
-    dev_sub_code = ''
-
-    layout = [
-        [sg.Column([
-            [sg.Text("Paste Subscription Code Below", font=(font, 18), text_color=ui_sub_font)],
-        ], justification='center', background_color=ui_title_bar)],
-        [sg.Column([
-            [sg.Text("")],
-            [sg.Multiline(size=(60, 8), key="subscription_info", do_not_clear=False, autoscroll=False, default_text=dev_sub_code)],
-            [sg.Button("    Add Subscription    ", key="add_merchant_subscription"), sg.Button("    Cancel    ", key="cancel_merchant_subscription", button_color=(ui_regular, ui_barely_visible))]
-        ], element_justification='c', justification='center')]
-    ]
-
-    window = sg.Window(title_bar_text, layout=layout, modal=True, margins=(20, 20), background_color=ui_title_bar, titlebar_icon='', no_titlebar=True, use_custom_titlebar=True, grab_anywhere=True, icon=icon)
-
-    while True:
-        event, values = window.read()
-
-        if event == sg.WIN_CLOSED or event == "cancel_merchant_subscription":
-            break
-
-        elif event == "add_merchant_subscription":
-            subscription_info = values["subscription_info"]
-            subscription_info = subscription_info.strip()  # in case user added any spaces or new lines
-
-            if len(subscription_info) < 1:
-                print("Merchant code cannot be empty! Not adding.")
-            
-            else:
-                # Check if the user submitted a dictionary rather than a monero-subscription code
-                if '{' in subscription_info[0] and '}' in subscription_info[len(subscription_info)-1]:
-                    try:
-                        subscription_json = json.loads(subscription_info)
-                        show_subscription_model(subscription_json)
-                    except:
-                        print('JSON for subscription is not valid. Not adding.')
-
-                else:  # Assume that the user submitted a monero-subscription code
-                    try:
-                        subscription_json = decode_monero_subscription_code(subscription_info)
-                        show_subscription_model(subscription_json)
-                    except:
-                        print('Monero subscription code is not valid. Not adding.')
-                break
-            break
-    window.close()
-
-def show_subscription_model(subscription_json):
-    layout = [[sg.Text("     Are You Sure You Want To Add This Subscription?", font=(font, 18), text_color=ui_sub_font)],
-    [sg.Text(str(subscription_json['custom_label']))],
-    [sg.Text("Every " + str(subscription_json['billing_cycle_days']) + " days")],
-    [sg.Text(str(subscription_json['amount']) + " " + str(subscription_json['currency']) + " will be sent to the merchant")],  # str(subscription_json['sellers_wallet'])
-    [sg.Button("     Yes     ", key="yes"), sg.Button("     No     ", key="no")]]
-    window = sg.Window("Are you sure?", layout=layout, modal=True, margins=(20, 20), background_color=ui_title_bar, titlebar_icon='', no_titlebar=True, use_custom_titlebar=True, grab_anywhere=True, icon=icon)
-    while True:
-        event, values = window.read()
-        if event == sg.WIN_CLOSED or event == "no":
-            window.close()
-            break
-        elif event == "yes":
-            add_subscription(subscription_json)
-            window.close()
-            break      
-   
-def add_subscription_manually():
-    today = datetime.today().strftime("%Y-%m-%d")
-    layout = [
-        [sg.Column([
-            [sg.Text("Enter Subscription Details", font=(font, 18), text_color=ui_sub_font)],
-        ], justification='center', background_color=ui_title_bar)],
-        [sg.Column([
-            [sg.Text("")],
-            [sg.Text("Custom Name:", background_color=ui_overall_background), sg.Input(size=(35, 1), key="custom_label")],
-            [sg.Text("Amount:", background_color=ui_overall_background), sg.Input(size=(15, 1), key="amount", default_text='0.00'), sg.Combo(["USD", "XMR"], default_value="USD", key="currency")],
-            [sg.Text("Billing Every:", background_color=ui_overall_background), sg.Input(size=(3, 1), key="billing_cycle_days"), sg.Text("Day(s)", background_color=ui_overall_background)],
-            [sg.Text("Start Date (YYYY-MM-DD):", background_color=ui_overall_background), sg.Input(default_text=today, size=(10, 1), key="start_date")],
-            [sg.Text("Seller's Wallet:", background_color=ui_overall_background), sg.Input(size=(102, 1), key="sellers_wallet")],
-            [sg.Text("Optional Payment ID From Seller:", background_color=ui_overall_background), sg.Input(size=(20, 1), key="payment_id")],
-            [sg.Text("")],
-            [sg.Column([
-                [sg.Button("    Add Subscription    ", key="add_manual_subscription"), sg.Button("    Cancel    ", key="cancel_manual_subscription", button_color=(ui_regular, ui_barely_visible))]
-                ], justification='center', element_justification='c')]
-        ], element_justification='l')]
-    ]
-
-    window = sg.Window(title_bar_text, layout=layout, modal=True, margins=(20, 20), titlebar_icon='', no_titlebar=True, background_color=ui_title_bar, use_custom_titlebar=True, grab_anywhere=True, icon=icon)
-
-    while True:
-        event, values = window.read()
-
-        if event == sg.WIN_CLOSED or event == "cancel_manual_subscription":
-            break
-
-        elif event == "add_manual_subscription":
-            custom_label = values["custom_label"]
-            amount = float(values["amount"])
-            currency = values["currency"]
-            billing_cycle_days = int(values["billing_cycle_days"])
-            start_date = values["start_date"]
-            sellers_wallet = values["sellers_wallet"]
-
-            try:
-                payment_id = values["payment_id"]
-            except:
-                payment_id = None
-
-            if not payment_id:
-                # '0000000000000000' is the same as no payment_id, but you want to use one.
-                # (Without one, you can't make multiple payments at the same time to the same wallet address.)
-                payment_id = make_payment_id()  # generates a random payment ID.
-
-            subscription_info = make_subscription_code(create_subscription(custom_label=custom_label, amount=amount, currency=currency, billing_cycle_days=billing_cycle_days, start_date=start_date, sellers_wallet=sellers_wallet, payment_id=payment_id))
-            subscription_json = decode_monero_subscription_code(subscription_info)
-            add_subscription(subscription_json)
-
-            print(custom_label)
-            print(amount)
-            print(currency)
-            print(billing_cycle_days)
-            print(start_date)
-            print(sellers_wallet)
-            print(payment_id)
-            print(subscription_info)
-
-            window.close()
-            window = create_window(subscriptions)
-            break
-
-    window.close()
 
 
 def get_random_monero_node():
@@ -842,11 +464,145 @@ def get_random_monero_node():
                 print(f'WORKS: {url}')
                 return url
 
+
 def refresh_gui():
     global window
     window.close()
-    subscriptions = read_subscriptions()
-    window = create_window(subscriptions) # recreate the window to refresh the GUI
+    window = create_window()  # recreate the window to refresh the GUI
+
+
+def make_node_window_layout():
+    layout = [[sg.Column([
+        [sg.Text("Add A Monero Node:", font=(font, 24), text_color=monero_orange, background_color=ui_overall_background)],
+        [sg.Text("     For maximum privacy: Add your own node, or one run by someone you trust     \n", font=(font, 16), text_color=ui_sub_font, background_color=ui_overall_background)],
+        [sg.Input(default_text='node.sethforprivacy.com:18089', key='custom_node', justification='center', size=(30, 2), font=(font, 18)), sg.Button('Add Node', key='add_node', font=(font, 12), size=(12, 1), button_color=(ui_button_a_font, ui_button_a))],
+        [sg.Text('', font=(font, 4))],
+        [sg.Text("...or add a random node (NOT RECOMMENDED)\n", font=(font, 12), text_color=ui_sub_font, background_color=ui_overall_background)],
+        [sg.Button('          Add A Random Node          ', key='add_random_node', font=(font, 12), button_color=(ui_button_b_font, ui_button_b))],
+        [sg.Text('')],
+        [sg.Text("Random nodes pulled from: https://Monero.fail\n", font=(font, 10), text_color=monero_orange, background_color=ui_overall_background)],
+        ], element_justification='c', justification='center')
+    ]]
+
+    return layout
+
+
+def make_convert_forward_window_layout():
+    layout = [[sg.Column([
+        [sg.Text("What Should Be Done With Received Funds?", font=(font, 24), text_color=monero_orange, background_color=ui_overall_background)],
+        #[sg.Text("     For maximum privacy: Add your own node, or one run by someone you trust     \n", font=(font, 16), text_color=ui_sub_font, background_color=ui_overall_background)],
+        [sg.Text('', font=(font, 4))],
+        [sg.Button('   Keep As Monero & Forward To Cold Storage   ', key='forward', font=(font, 12), size=(80, 1), button_color=(ui_button_a_font, ui_button_a))],
+        [sg.Text('', font=(font, 1))],
+        [sg.Button('       Convert To USD & Send To Exchange      ', key='convert', font=(font, 12), size=(80, 1), button_color=(ui_button_b_font, ui_button_b))],
+        [sg.Text('')],
+        ], element_justification='c', justification='center')
+    ]]
+
+    return layout
+
+
+def prompt_for_forward_to_cold_storage():
+    # Define the window's layout
+    layout = [[sg.Column([
+        [sg.Text("Enter A Monero Wallet Address To Forward Funds To:", font=(font, 24), text_color=monero_orange, background_color=ui_overall_background)],
+        [sg.Text("     This software (a hot wallet) is not a good place to store funds longterm. They should be kept in cold storage.      \n", font=(font, 16), text_color=ui_sub_font, background_color=ui_overall_background)],
+        #[sg.Text('', font=(font, 4))],
+        [sg.Text("Auto-Forwarding To:", font=(font, 14), background_color=ui_overall_background, text_color=ui_sub_font), sg.Input(size=(102, 1), key="cold_storage_wallet"), sg.Button('   Submit   ', key='submit', font=(font, 12), size=(12, 1), button_color=(ui_button_a_font, ui_button_a))],
+        [sg.Text('')],
+    ], element_justification='c', justification='center')
+    ]]
+
+    # Create the window
+    window = sg.Window('Convert Or Forward', layout, keep_on_top=True, no_titlebar=True, grab_anywhere=True)
+
+    # Event loop
+    while True:
+        event, values = window.read()
+        if event == 'submit':
+            print('you clicked submmit')
+            cold_storage_wallet_address = values["cold_storage_wallet"]
+            print(cold_storage_wallet_address)
+
+            if check_if_monero_wallet_address_is_valid_format(cold_storage_wallet_address):
+                # write to file
+                with open(cold_wallet_filename, 'w') as f:
+                    f.write(cold_storage_wallet_address + '\n')
+                global cold_wallet
+                cold_wallet = cold_storage_wallet_address
+            break
+
+        if event == sg.WIN_CLOSED:
+            break
+
+    window.close()
+
+
+def prompt_for_convert_to_usd():
+    ###################### LEFT OFF WORKING HERE. COPY/PASTE UPDATING THE DATA IN THIS FUNCTION ###################################################################################################################
+    # Define the window's layout
+    layout = [[sg.Column([
+        [sg.Text("Auto-Convert To USD:", font=(font, 24), text_color=monero_orange, background_color=ui_overall_background)],
+        [sg.Text("     Select a stable coin, network, and enter a wallet address.      \n", font=(font, 16), text_color=ui_sub_font, background_color=ui_overall_background)],
+        #[sg.Text('', font=(font, 4))],
+        [sg.Text("Wallet:", font=(font, 14), background_color=ui_overall_background, text_color=ui_sub_font), sg.Input(size=(50, 1), key="wallet"), sg.Button('   Submit   ', key='submit', font=(font, 12), size=(12, 1), button_color=(ui_button_a_font, ui_button_a))],
+        [sg.Text("Coin:", font=(font, 14), background_color=ui_overall_background, text_color=ui_sub_font), sg.Input(size=(50, 1), key="coin")],
+        [sg.Text("Network:", font=(font, 14), background_color=ui_overall_background, text_color=ui_sub_font), sg.Input(size=(50, 1), key="network")],
+        [sg.Text('')],
+    ], element_justification='c', justification='center')
+    ]]
+
+    # Create the window
+    window = sg.Window('Convert Or Forward', layout, keep_on_top=True, no_titlebar=True, grab_anywhere=True)
+
+    # Event loop
+    while True:
+        event, values = window.read()
+        if event == 'submit':
+            print('you clicked submmit')
+            cold_storage_wallet_address = values["wallet"]
+            print(cold_storage_wallet_address)
+
+            if check_if_monero_wallet_address_is_valid_format(cold_storage_wallet_address):
+                # write to file
+                with open(cold_wallet_filename, 'w') as f:
+                    f.write(cold_storage_wallet_address + '\n')
+                global cold_wallet
+                cold_wallet = cold_storage_wallet_address
+            break
+
+        if event == sg.WIN_CLOSED:
+            break
+
+    window.close()
+
+
+def prompt_for_convert_forward_selection():
+    # Define the window's layout
+    layout = make_convert_forward_window_layout()
+
+    # Create the window
+    window = sg.Window('Convert Or Forward', layout, keep_on_top=True, no_titlebar=True, grab_anywhere=True)
+
+    # Event loop
+    while True:
+        event, values = window.read()
+        if event == 'forward':
+            print('you clicked forward')
+            prompt_for_forward_to_cold_storage()
+            break
+
+        elif event == 'convert':
+            print('you clicked convert')
+            prompt_for_convert_to_usd()
+            break
+
+        if event == sg.WIN_CLOSED:
+            break
+
+    window.close()
+
+
 
 # THEME VARIABLES ######################################################################################################
 
@@ -890,28 +646,23 @@ sg.theme_border_width(0)
 sg.theme_slider_border_width(0)
 
 # VARIABLES ############################################################################################################
-forward_wallet = '0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D'
-forward_wallet_type = 'USDC'
-
 if platform.system() == 'Windows':
     monero_wallet_cli_path = "" + 'monero-wallet-cli.exe'  # Update path to the location of the monero-wallet-cli executable if your on WINDOWS
 else:
     monero_wallet_cli_path = os.getcwd() + '/' + 'monero-wallet-cli'  # Update path to the location of the monero-wallet-cli executable if your on other platforms
-wallet_name = "subscriptions_wallet"
+wallet_name = "business_wallet"
 if platform.system() == 'Windows':
     wallet_file_path = ""
 else:
     wallet_file_path = f'{os.getcwd()}/'  # Update this path to the location where you want to save the wallet file
-subs_file_path = 'Subscriptions.json'
+
+monero_transactions_file = 'monero_transactions.csv'
 rpc_bind_port = '18088'
 local_rpc_url = f"http://127.0.0.1:{rpc_bind_port}/json_rpc"
 rpc_username = "monero"
 rpc_password = "monero"
 
 stop_flag = threading.Event()  # Define a flag to indicate if the threads should stop
-
-# Get subscriptions list
-subscriptions = read_subscriptions()
 
 welcome_popup_text = '''
            Welcome to the Monero Business Wallet!
@@ -931,7 +682,6 @@ https://github.com/lukeprofits/Monero_Business_Wallet
 
 # ADD DAEMON/NODE ######################################################################################################
 node_filename = "node_to_use.txt"
-cold_wallet_filename = 'cold_wallet.txt'
 
 if os.path.exists(node_filename):
     with open(node_filename, 'r') as f:
@@ -941,17 +691,7 @@ else:
     sg.popup(welcome_popup_text, icon=icon, no_titlebar=True, background_color=ui_overall_background, grab_anywhere=True)
 
     # Define the window's layout
-    layout = [[sg.Column([
-        [sg.Text("Add A Monero Node:", font=(font, 24), text_color=monero_orange, background_color=ui_overall_background)],
-        [sg.Text("     For maximum privacy: Add your own node, or one run by someone you trust     \n", font=(font, 16), text_color=ui_sub_font, background_color=ui_overall_background)],
-        [sg.Input(default_text='node.sethforprivacy.com:18089', key='custom_node', justification='center', size=(30, 2), font=(font, 18)), sg.Button('Add Node', key='add_node', font=(font, 12), size=(12, 1), button_color=(ui_button_a_font, ui_button_a))],
-        [sg.Text('', font=(font, 4))],
-        [sg.Text("...or add a random node (NOT RECOMMENDED)\n", font=(font, 12), text_color=ui_sub_font, background_color=ui_overall_background)],
-        [sg.Button('          Add A Random Node          ', key='add_random_node', font=(font, 12), button_color=(ui_button_b_font, ui_button_b))],
-        [sg.Text('')],
-        [sg.Text("Random nodes pulled from: https://Monero.fail\n", font=(font, 10), text_color=monero_orange, background_color=ui_overall_background)],
-        ], element_justification='c', justification='center')
-    ]]
+    layout = make_node_window_layout()
 
     # Create the window
     window = sg.Window('Node Input', layout, keep_on_top=True, no_titlebar=True, grab_anywhere=True)
@@ -995,6 +735,45 @@ host = node.split(':')[0]
 port = node.split(':')[1]
 
 daemon_rpc_url = f"http://{host}:{port}/json_rpc"
+# END NODE SECTION
+
+
+# CONVERT OR FORWARD SECTION
+# Note: cold_storage takes priority over convert. If both are specified, it should forward to cold storage only.
+cold_wallet_filename = 'cold_wallet.txt'
+convert_wallet_filename = 'conversion_wallet.txt'
+cold_wallet = ''
+convert_wallet = ''
+convert_coin = ''
+convert_network = ''
+
+
+convert = False
+forward = False
+
+if os.path.exists(cold_wallet_filename):
+    with open(cold_wallet_filename, 'r') as f:
+        cold_wallet = f.readline().strip()  # read first line into 'node'
+        if check_if_monero_wallet_address_is_valid_format(cold_wallet):
+            forward = True
+
+elif os.path.exists(convert_wallet_filename):
+    with open(convert_wallet_filename, 'r') as f:
+        data = f.readline().strip()  # read first line into 'node'
+        # Should be in this format: wallet_address:coin_ticker:network_name
+        data = data.split(':')
+        convert_wallet = data[0]
+        convert_coin = data[1]
+        convert_network = data[2]
+        if convert_wallet and convert_coin and convert_network:
+            convert = True
+            #forward_wallet = '0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D'
+            #forward_wallet_type = 'USDC'
+            #network = 'Polygon'
+
+if not forward and not convert:
+    prompt_for_convert_forward_selection()
+# END CONVERT OR FORWARD SECTION
 
 
 # ADD A WALLET #########################################################################################################
@@ -1032,7 +811,7 @@ except:
 
 
 # GUI LAYOUT ###########################################################################################################
-def create_window(subscriptions): # Creates the main window and returns it
+def create_window():  # Creates the main window and returns it
 
     # Define the window layout
     layout = [
@@ -1093,7 +872,7 @@ window.close()
 threading.Thread(target=update_gui_balance).start()
 
 # Create the window
-window = create_window(subscriptions)
+window = create_window()
 
 # MAIN EVENT LOOP ######################################################################################################
 while True:
@@ -1105,14 +884,6 @@ while True:
     elif event == 'copy_address':
         clipboard.copy(wallet_address)
         print(f'COPIED: {wallet_address}')
-
-    elif event == 'add_subscription':
-        # Display the "How would you like to add this subscription?" popup
-        choice = sg.popup("        How would you like to add this subscription?\n", text_color=ui_sub_font, title='', custom_text=("    Manually    ", "    Paste From Merchant    "), no_titlebar=True, background_color=ui_title_bar, modal=True, grab_anywhere=True, icon=icon)
-        if "From Merchant" in choice:
-            add_subscription_from_merchant()
-        elif "Manually" in choice:
-            add_subscription_manually()
 
     elif event == 'send':
         try:
@@ -1139,22 +910,5 @@ while True:
             print('failed to send')
             window['withdraw_to_wallet'].update('Error: Enter a valid wallet address and XMR amount.')
 
-    for i, sub in enumerate(subscriptions):
-        if event == f'cancel_subscription_{i}':
-            print(f'TRYING TO CANCEL NUMBER: {i}')
-            amount = sub["amount"]
-            custom_label = sub["custom_label"]
-            billing_cycle_days = sub["billing_cycle_days"]
-
-            subscriptions = read_subscriptions()
-
-            # Do something with the values
-            print(f"Cancelled {custom_label}: ${amount}, renews in {billing_cycle_days} days")
-
-            index = find_matching_subscription_index(subscriptions=subscriptions, custom_label=sub["custom_label"], amount=sub["amount"], billing_cycle_days=sub["billing_cycle_days"])
-            if index is not None:
-                subscriptions = subscriptions[:index] + subscriptions[index + 1:]
-                remove_subscription(subscriptions_list=subscriptions)
-                refresh_gui() # recreate the window to refresh the GUI
                 
 window.close()
