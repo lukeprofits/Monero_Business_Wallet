@@ -11,6 +11,6 @@ The goal of this project is to reduce the barrier to entry for merchants, and in
 
 * Remain as decentralized as possible.
   
-* Include all tax information needed for merchants.
+* Include all useful tax information needed for merchants.
 
 * Protect privacy as much as possible. 
