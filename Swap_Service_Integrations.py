@@ -1,12 +1,16 @@
 # This is where all the swap-service related functions go.
 # We may need different functions for getting the rates, and performing the swap.
 
+import json
+import time
+
 import requests
 from fp.fp import FreeProxy
 
 # GLOBAL VARIABLES #####################################################################################################
 # Sideshift
 sideshift_api_endpoint = 'https://sideshift.ai/api/v2/'
+sideshift_affiliate_id = 'ql4wc8Y44'  # Required, but I set the commission rate to 0, so that I don't make anything.
 
 # Trocador
 trocador_api_endpoint = 'https://trocador.app/en/api/'
@@ -91,8 +95,42 @@ def get_networks_for_coin_from_changenow(coin_to_check, proxy=None):
 
 
 # SWAP FUNCTIONS #######################################################################################################
-def with_sideshift():
+def with_sideshift(shift_to_coin, to_wallet, on_network, amount_to_swap, proxy=None):
     # Documentation: https://sideshift.ai/api/
+
+    converting_from = 'xmr'
+    # Confirm that coin and network are still supported (and get min/max swap amounts)
+    pass
+
+    # Use supported_network_names to convert on_network to the correct "word" for this platform.
+    # (makes all items in both lists lowercase, and then uses "&" to find the intersection)
+    on_network = set(n.lower() for n in supported_network_names[on_network]) & set(nn.lower() for nn in get_networks_for_coin_from_sideshift(shift_to_coin))
+    on_network = on_network.pop()
+    #print(on_network)
+
+    # Create variable-rate swap
+    response = create_shift_with_sideshift(converting_from=converting_from, shift_to_coin=shift_to_coin, to_wallet=to_wallet, on_network=on_network)
+    print(response)
+
+    shift_id = response['id']
+    send_to_wallet = response['depositAddress']
+    send_min = response['depositMin']
+    send_max = response['depositMax']
+    expires_at = response['expiresAt']
+    status = response['status']
+    average_time_to_complete = response['averageShiftSeconds']
+
+    print(shift_id, send_to_wallet, send_min, send_max, expires_at, status, average_time_to_complete)
+
+    # also get the other stuff to confirm that it matches, which it should.
+    # {'id': '95b520d9ccd01b23c6c5', 'createdAt': '2023-07-27T06:16:24.524Z', 'depositCoin': 'XMR', 'settleCoin': 'USDC', 'depositNetwork': 'monero', 'settleNetwork': 'polygon', 'depositAddress': '4Bh68jCUZGHbVu45zCVvtcMYesHuduwgajoQcdYRjUQcY6MNa8qd67vTfSNWdtrc33dDECzbPCJeQ8HbiopdeM7Ej3qLTv2mWCwMgFHsyQ', 'settleAddress': '0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D', 'depositMin': '0.018337408314', 'depositMax': '30.56234719', 'type': 'variable', 'expiresAt': '2023-08-03T06:16:24.524Z', 'status': 'waiting', 'averageShiftSeconds': '28.21795'}
+
+    input('paused')
+    # KEEP ADDING MORE HERE TO FINISH THIS FUNCTION ##################################################################################################################
+    # Get wallet address to send to
+
+    # Send the coins
+
     pass
 
 
@@ -158,7 +196,64 @@ def find_working_proxy_for_sideshift():
     return proxy
 
 
+def create_shift_with_sideshift(converting_from, shift_to_coin, to_wallet, on_network):
+    while True:
+        try:
+            # check if we are blocked on the current IP
+            if not check_if_ip_address_works_with_sideshift():
+                # we are blocked, the user probably has a VPN on, so use a proxy
+                print('looking for a proxy that will work')
+                proxy = find_working_proxy_for_sideshift()
+                #proxy = 'http://20.44.206.138:80'  #'http://52.221.130.124:80'
+                time.sleep(5)
+            else:
+                print('Not using a proxy')
+                proxy = None
+
+            api_link = f'{sideshift_api_endpoint}shifts/variable'
+            headers = {
+                'Content-Type': 'application/json'
+            }
+            data = {
+                "settleAddress": to_wallet,
+                # "refundAddress": refund_address,  # leaving this out to stay anonymous
+                "depositCoin": converting_from,
+                "settleCoin": shift_to_coin,
+                "settleNetwork": on_network,
+                "affiliateId": sideshift_affiliate_id,
+                "commissionRate": 0.0  # set the commissionRate to 0
+            }
+            print('sending request/waiting for response...')
+            response = requests.post(api_link, headers=headers, data=json.dumps(data), proxies={"http": proxy, "https": proxy})
+
+            if response.status_code == 201:  # it was successful
+                print('Created Shift!')
+                return response.json()
+            else:
+                print(response)
+        except Exception as e:
+            print(e)
+            time.sleep(2)
+
+
 # TESTING ##############################################################################################################
 #get_networks_for_coin_from_changenow('USDT')
 #get_networks_for_coin_from_sideshift('USDT')
 #get_networks_for_coin_from_trocador('USDT')
+
+
+with_sideshift(shift_to_coin='USDC', to_wallet='0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D', on_network='Polygon', amount_to_swap=111)
+
+input('adsfasdf')
+success = False
+while not success:
+    try:
+        proxy = 'http://52.221.130.124:80'  #find_working_proxy_for_sideshift()
+        time.sleep(10)
+        with_sideshift(shift_to_coin='USDC', to_wallet='0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D', on_network='Polygon', amount_to_swap=111, proxy=proxy)
+        print('DONE!')
+        success = True
+    except Exception as e:
+        print(e)
+        time.sleep(2)
+print('OUT OF LOOP!')

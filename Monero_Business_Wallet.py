@@ -565,15 +565,23 @@ def prompt_for_convert_to_usd():
         event, values = window.read()
         if event == 'submit':
             print('you clicked submmit')
-            cold_storage_wallet_address = values["wallet"]
-            print(cold_storage_wallet_address)
+            swap_coin = values["coin"]
+            swap_network = values["network"]
+            swap_wallet_address = values["wallet"]
 
-            if check_if_monero_wallet_address_is_valid_format(cold_storage_wallet_address):
-                # write to file
-                with open(cold_wallet_filename, 'w') as f:
-                    f.write(cold_storage_wallet_address + '\n')
-                global cold_wallet
-                cold_wallet = cold_storage_wallet_address
+            swap_info = {
+                "coin": swap_coin,
+                "network": swap_network,
+                "wallet": swap_wallet_address
+            }
+            swap_info = json.dumps(swap_info)
+            print(swap_info)
+
+            # write to file
+            with open(convert_wallet_filename, 'w') as f:
+                f.write(swap_info + '\n')
+            global convert_coin, convert_network, convert_wallet
+            convert_coin, convert_network, convert_wallet = swap_coin, swap_network, swap_wallet_address
             break
 
         if event == sg.WIN_CLOSED:
@@ -758,20 +766,20 @@ forward = False
 
 if os.path.exists(cold_wallet_filename):
     with open(cold_wallet_filename, 'r') as f:
-        cold_wallet = f.readline().strip()  # read first line into 'node'
+        cold_wallet = f.readline().strip()
         if check_if_monero_wallet_address_is_valid_format(cold_wallet):
             forward = True
 
 elif os.path.exists(convert_wallet_filename):
     with open(convert_wallet_filename, 'r') as f:
-        data = f.readline().strip()  # read first line into 'node'
-        # Should be in this format: wallet_address:coin_ticker:network_name
-        data = data.split(':')
-        convert_wallet = data[0]
-        convert_coin = data[1]
-        convert_network = data[2]
+        data = f.read().strip()
+        data = json.loads(data)
+        convert_wallet = data['wallet']
+        convert_coin = data['coin']
+        convert_network = data['network']
         if convert_wallet and convert_coin and convert_network:
             convert = True
+            print(convert_wallet, convert_coin, convert_network)
             #forward_wallet = '0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D'
             #forward_wallet_type = 'USDC'
             #network = 'Polygon'
