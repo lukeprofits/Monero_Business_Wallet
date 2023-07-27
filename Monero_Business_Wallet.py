@@ -543,11 +543,16 @@ def prompt_for_convert_to_usd():
     # Define the window's layout
     layout = [[sg.Column([
         [sg.Text("Auto-Convert To USD:", font=(font, 24), text_color=monero_orange, background_color=ui_overall_background)],
-        [sg.Text("     Select a stable coin, network, and enter a wallet address.      \n", font=(font, 16), text_color=ui_sub_font, background_color=ui_overall_background)],
+        [sg.Text('      Make sure to select the correct coin and network for your wallet, or it will result in loss of funds.      ', font=(font, 12), background_color=ui_overall_background, text_color=ui_sub_font)],
+        [sg.Text('')],
+        #[sg.Text("     (For lowest fees, use the defaults)      ", font=(font, 16), text_color=ui_sub_font, background_color=ui_overall_background)],
         #[sg.Text('', font=(font, 4))],
-        [sg.Text("Wallet:", font=(font, 14), background_color=ui_overall_background, text_color=ui_sub_font), sg.Input(size=(50, 1), key="wallet"), sg.Button('   Submit   ', key='submit', font=(font, 12), size=(12, 1), button_color=(ui_button_a_font, ui_button_a))],
-        [sg.Text("Coin:", font=(font, 14), background_color=ui_overall_background, text_color=ui_sub_font), sg.Input(size=(50, 1), key="coin")],
-        [sg.Text("Network:", font=(font, 14), background_color=ui_overall_background, text_color=ui_sub_font), sg.Input(size=(50, 1), key="network")],
+        [sg.Text("Convert To Coin:", font=(font, 14), background_color=ui_overall_background, text_color=ui_sub_font), sg.Combo(swap.supported_coins, default_value="USDC", key="coin", font=(font, 12), size=(6, 1)),
+         sg.Text("On Network:", font=(font, 14), background_color=ui_overall_background, text_color=ui_sub_font), sg.Combo(swap.supported_networks, default_value="Polygon", key="network", font=(font, 12), size=(16, 1)), sg.Text('     ', background_color=ui_overall_background)],
+        [sg.Text('')],
+        [sg.Text("     Wallet Address:", font=(font, 14), background_color=ui_overall_background, text_color=ui_sub_font), sg.Input(size=(45, 1), key="wallet", default_text='[ Enter a wallet address ]', justification='center')],
+        [sg.Text('')],
+        [sg.Button('      Submit      ', key='submit', font=(font, 12), size=(28, 1), button_color=(ui_button_a_font, ui_button_a))],
         [sg.Text('')],
     ], element_justification='c', justification='center')
     ]]

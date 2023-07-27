@@ -1,18 +1,96 @@
 # This is where all the swap-service related functions go.
-# We may need seperate functions for getting the rates, and performing the swap.
+# We may need different functions for getting the rates, and performing the swap.
 
 import requests
 from fp.fp import FreeProxy
 
+# GLOBAL VARIABLES #####################################################################################################
+# Sideshift
+sideshift_api_endpoint = 'https://sideshift.ai/api/v2/'
+
+# Trocador
+trocador_api_endpoint = 'https://trocador.app/en/api/'
+trocador_api_key = 'j3uhif80j37OpnZoEwD29w1HqR84A0'  # if my account gets used too much or banned, get your own api key
+trocador_ref = 'z1kEXtwvF'
+
+# Localmonero
+
+# Kraken
+
+# IBKR
+
+# ChangeNow
+changenow_api_endpoint = 'https://api.changenow.io/v2/'
+changenow_api_key = '58aff9c5d295ff13c885e8fcd3373402c3ab8e5752964d9c3e7ff991da831a2f'  # if my account gets used too much or banned, get your own api key
+
+# Supported Coins & Networks
+supported_network_names = {
+    "Ethereum": ["ethereum", "ERC20", "ERC-20", "eth", ],
+    "Polygon": ["polygon", "MATIC"],
+    "Solana": ["solana", "SOL"],
+    "Avalance C-Chain": ["Avalance C-Chain", "avax", "AVAXC", "Avax-c"],
+    "Arbitrum": ["arbitrum"],
+    #"Optimism": ["optimism", "op"],
+    #"Binance Smart Chain": ["Binance Smart Chain", "bsc", "BEP20", "BEP-20"],
+    #"Tron": ["tron", "TRC20", "TRC-20", "trx"],
+    #"Algorand": ["algorand", "algo"]
+}
+supported_networks = list(supported_network_names.keys())
+supported_coins = ['USDC', 'USDT']  # Add any coin tickers the monero business wallet should support here
+
+
+# GET COIN FUNCTIONS ###################################################################################################
+def get_networks_for_coin_from_sideshift(coin_to_check, proxy=None):
+    api_link = f'{sideshift_api_endpoint}coins'
+    response = requests.get(api_link, proxies={"http": proxy, "https": proxy})
+    response = response.json()
+    networks = []
+    for item in response:
+        # if item['coin'] in coins_supported:
+        if item['coin'].lower() == coin_to_check.lower():
+            #print(item)
+            for i in item['networks']:
+                networks.append(i)
+
+    print(f'Sideshift Networks for {coin_to_check}: {networks}')
+    return networks
+
+
+def get_networks_for_coin_from_trocador(coin_to_check, proxy=None):
+    api_link = f'{trocador_api_endpoint}coins/?api_key={trocador_api_key}&ref={trocador_ref}'
+    response = requests.get(api_link, proxies={"http": proxy, "https": proxy})
+    response = response.json()
+    networks = []
+    for item in response:
+        # if item['coin'] in coins_supported:
+        if item['ticker'].lower() == coin_to_check.lower():
+            #print(item)
+            networks.append(item['network'])
+
+    print(f'Trocador Networks for {coin_to_check}: {networks}')
+    return networks
+
+
+def get_networks_for_coin_from_changenow(coin_to_check, proxy=None):
+    api_link = f'{changenow_api_endpoint}exchange/currencies?active=&flow=standard&buy=&sell='
+    headers = {
+        'x-changenow-api-key': changenow_api_key
+    }
+    response = requests.get(api_link, headers=headers, proxies={"http": proxy, "https": proxy})
+    #print(response)
+    response = response.json()
+    #print(response)
+    networks = []
+    for item in response:
+        if item['ticker'].lower() == coin_to_check.lower():
+            #print(item)
+            networks.append(item['network'])
+
+    print(f'Changenow Networks for {coin_to_check}: {networks}')
+    return networks
+
 
 # SWAP FUNCTIONS #######################################################################################################
-def at_best_rate():
-    # A function that should be able to determine the swap service that gives the best rate, and uses it.
-    # Users should be able to set certain swap services to avoid (if desired). By default, all are used.
-    # (unless complex setup is required like Kraken)
-    pass
-
-
 def with_sideshift():
     # Documentation: https://sideshift.ai/api/
     pass
@@ -37,6 +115,18 @@ def with_kraken():
 def with_ibkr():
     # Documentation: https://www.interactivebrokers.com/api/doc.html
     # Not sure if we really want to add this one or not, but it was suggested (I've never heard of them).
+    pass
+
+
+def with_changenow():
+    # Documentation: https://gitlab.com/changenow-s-library-catalogue/changenow-api-python
+    pass
+
+
+def at_best_rate():
+    # A function that should be able to determine the swap service that gives the best rate, and uses it.
+    # Users should be able to set certain swap services to avoid (if desired). By default, all are used.
+    # (unless complex setup is required like Kraken)
     pass
 
 
@@ -66,3 +156,9 @@ def find_working_proxy_for_sideshift():
             pass
     print(f'\nWe bypassed SideShifts location restrictions with proxy {proxy}')
     return proxy
+
+
+# TESTING ##############################################################################################################
+#get_networks_for_coin_from_changenow('USDT')
+#get_networks_for_coin_from_sideshift('USDT')
+#get_networks_for_coin_from_trocador('USDT')
