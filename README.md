@@ -2,6 +2,10 @@
 
 In progress. Do not use yet. 
 
+<p align="center">
+  <br><img src="Example.jpg" alt="Monero Business Wallet"><br>
+</p>
+
 ## Mission Statement
 The goal of this project is to reduce the barrier to entry for merchants, and increase acessability/usage of Monero by creating a simple, user-friendly way for merchants to accept XMR and receive USD. 
 
