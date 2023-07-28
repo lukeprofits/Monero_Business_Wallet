@@ -3,7 +3,7 @@
 
 import json
 import time
-
+import monero_usd_price
 import requests
 from fp.fp import FreeProxy
 
@@ -125,11 +125,13 @@ def with_sideshift(shift_to_coin, to_wallet, on_network, amount_to_swap, proxy=N
     # also get the other stuff to confirm that it matches, which it should.
     # {'id': '95b520d9ccd01b23c6c5', 'createdAt': '2023-07-27T06:16:24.524Z', 'depositCoin': 'XMR', 'settleCoin': 'USDC', 'depositNetwork': 'monero', 'settleNetwork': 'polygon', 'depositAddress': '4Bh68jCUZGHbVu45zCVvtcMYesHuduwgajoQcdYRjUQcY6MNa8qd67vTfSNWdtrc33dDECzbPCJeQ8HbiopdeM7Ej3qLTv2mWCwMgFHsyQ', 'settleAddress': '0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D', 'depositMin': '0.018337408314', 'depositMax': '30.56234719', 'type': 'variable', 'expiresAt': '2023-08-03T06:16:24.524Z', 'status': 'waiting', 'averageShiftSeconds': '28.21795'}
 
-    input('paused')
     # KEEP ADDING MORE HERE TO FINISH THIS FUNCTION ##################################################################################################################
     # Get wallet address to send to
 
     # Send the coins
+    import Monero_Business_Wallet as wallet
+
+    wallet.send_monero(destination_address=send_to_wallet, amount=amount_to_convert)
 
     pass
 
@@ -241,19 +243,4 @@ def create_shift_with_sideshift(converting_from, shift_to_coin, to_wallet, on_ne
 #get_networks_for_coin_from_sideshift('USDT')
 #get_networks_for_coin_from_trocador('USDT')
 
-
-with_sideshift(shift_to_coin='USDC', to_wallet='0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D', on_network='Polygon', amount_to_swap=111)
-
-input('adsfasdf')
-success = False
-while not success:
-    try:
-        proxy = 'http://52.221.130.124:80'  #find_working_proxy_for_sideshift()
-        time.sleep(10)
-        with_sideshift(shift_to_coin='USDC', to_wallet='0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D', on_network='Polygon', amount_to_swap=111, proxy=proxy)
-        print('DONE!')
-        success = True
-    except Exception as e:
-        print(e)
-        time.sleep(2)
-print('OUT OF LOOP!')
+#with_sideshift(shift_to_coin='USDC', to_wallet='0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D', on_network='Polygon', amount_to_swap=111)
