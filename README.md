@@ -16,7 +16,7 @@ The goal of this project is to reduce the barrier to entry for merchants, and in
 
 ## How It Works: 
 * Launch the wallet.
-* Select if you would like to have Monero recieved auto-forwarded to cold storage, or converted to a stable coin and auto-forwarded to [an exchange](https://www.coinbase.com/join/whitte_s6) (where it can be sold for USD).
+* Select if you would like to have Monero recieved auto-forwarded to cold storage, or converted to a stable coin and auto-forwarded to [an exchange (where it can be sold for USD)](https://www.coinbase.com/join/whitte_s6).
 * Configure additional privacy settings if desired.
 * Leave the wallet open and running. Incoming payments will automatically be recorded in a local spreadsheet (for taxes), and will then be forwarded based on your preferences.
 
