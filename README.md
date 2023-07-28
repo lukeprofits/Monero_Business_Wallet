@@ -5,7 +5,8 @@
 ![License](https://img.shields.io/badge/License-MIT-yellow.svg)
 ![Uses](https://img.shields.io/badge/Uses-Monero%20RPC-orange.svg)
 
-In progress. Do not use yet. 
+(IN PROGRESS! DO NOT USE YET!)
+Accept Monero, recieve cash in your bank account. 
 
 <p align="center">
   <br><img src="Example.jpg" alt="Monero Business Wallet"><br>
