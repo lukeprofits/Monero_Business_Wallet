@@ -62,6 +62,20 @@ The goal of this project is to reduce the barrier to entry for merchants, and in
   <img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" style="height: 60px !important;width: 217px !important;">
 </a>
 
+
+## User Agreement
+
+By using this software, you agree to the following:
+
+1. You will use this software in compliance with all local, state, national, and international laws and regulations.
+2. You acknowledge that the author of the software does not encourage or condone illegal activities.
+3. You agree to use the software's features, including the cryptocurrency transaction features and geo-restriction bypassing features, responsibly and legally.
+4. You understand that the Monero Business Wallet uses non-KYC swap services to convert Monero to stable coins and it's your responsibility to not use this function if non-KYC swaps are not legal in your country.
+5. You accept that the author of the software is not responsible for any legal issues that arise from your use of the software and agree to hold the author harmless from any such issues.
+6. You understand and accept that the author does not guarantee the legality of the software in any jurisdiction and is not responsible for determining whether the software is legal for you to use.
+7. You acknowledge that use of this software carries inherent risks, including but not limited to financial loss. You agree that you are using this software at your own risk, and accept full responsibility for any and all consequences, including financial loss, arising from your use of the software.
+
+
 ## Legal Disclaimer
 
 By downloading, using or distributing this software, **you acknowledge that you are doing so in a jurisdiction that legally permits such activities**. The software is created with the intention of legal use. The author of this software is not responsible for the actions of its users, and users are fully responsible for ensuring that their use of the software complies with local, state, national, and international law.
@@ -79,15 +93,3 @@ You acknowledge that use of this software carries inherent risks, including but 
 In the event that any liability is imposed on the author despite the above disclaimers, you agree that the author's maximum aggregate liability to you will not exceed $0.
 
 > :warning: **Remember: Use this software responsibly, in accordance with all applicable laws and regulations. The author does not condone or support illegal activities.**
-
-## User Agreement
-
-By using this software, you agree to the following:
-
-1. You will use this software in compliance with all local, state, national, and international laws and regulations.
-2. You acknowledge that the author of the software does not encourage or condone illegal activities.
-3. You agree to use the software's features, including the cryptocurrency transaction features and geo-restriction bypassing features, responsibly and legally.
-4. You understand that the Monero Business Wallet uses non-KYC swap services to convert Monero to stable coins and it's your responsibility to not use this function if non-KYC swaps are not legal in your country.
-5. You accept that the author of the software is not responsible for any legal issues that arise from your use of the software and agree to hold the author harmless from any such issues.
-6. You understand and accept that the author does not guarantee the legality of the software in any jurisdiction and is not responsible for determining whether the software is legal for you to use.
-7. You acknowledge that use of this software carries inherent risks, including but not limited to financial loss. You agree that you are using this software at your own risk, and accept full responsibility for any and all consequences, including financial loss, arising from your use of the software.
