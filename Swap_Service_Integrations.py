@@ -7,6 +7,8 @@ import monero_usd_price
 import requests
 from fp.fp import FreeProxy
 
+import Monero_Business_Wallet as wallet
+
 # GLOBAL VARIABLES #####################################################################################################
 # Sideshift
 sideshift_api_endpoint = 'https://sideshift.ai/api/v2/'
@@ -30,17 +32,17 @@ changenow_api_key = '58aff9c5d295ff13c885e8fcd3373402c3ab8e5752964d9c3e7ff991da8
 # Supported Coins & Networks
 supported_network_names = {
     "Ethereum": ["ethereum", "ERC20", "ERC-20", "eth", ],
-    "Polygon": ["polygon", "MATIC"],
-    "Solana": ["solana", "SOL"],
-    "Avalance C-Chain": ["Avalance C-Chain", "avax", "AVAXC", "Avax-c"],
-    "Arbitrum": ["arbitrum"],
+    "Polygon": ["polygon", "MATIC", "matic"],
+    #"Solana": ["solana", "SOL"],
+    #"Avalance C-Chain": ["Avalance C-Chain", "avax", "AVAXC", "Avax-c"],
+    "Arbitrum": ["arbitrum", "Arbitrum"],
     #"Optimism": ["optimism", "op"],
     #"Binance Smart Chain": ["Binance Smart Chain", "bsc", "BEP20", "BEP-20"],
     #"Tron": ["tron", "TRC20", "TRC-20", "trx"],
     #"Algorand": ["algorand", "algo"]
 }
 supported_networks = list(supported_network_names.keys())
-supported_coins = ['USDC', 'USDT']  # Add any coin tickers the monero business wallet should support here
+supported_coins = ['USDC', 'USDT', 'DAI']  # Add any coin tickers the monero business wallet should support here
 
 
 # GET COIN FUNCTIONS ###################################################################################################
@@ -95,7 +97,7 @@ def get_networks_for_coin_from_changenow(coin_to_check, proxy=None):
 
 
 # SWAP FUNCTIONS #######################################################################################################
-def with_sideshift(shift_to_coin, to_wallet, on_network, amount_to_swap, proxy=None):
+def with_sideshift(shift_to_coin, to_wallet, on_network, amount_to_convert, proxy=None):
     # Documentation: https://sideshift.ai/api/
 
     converting_from = 'xmr'
@@ -120,20 +122,25 @@ def with_sideshift(shift_to_coin, to_wallet, on_network, amount_to_swap, proxy=N
     status = response['status']
     average_time_to_complete = response['averageShiftSeconds']
 
-    print(shift_id, send_to_wallet, send_min, send_max, expires_at, status, average_time_to_complete)
+    print('Shift ID:', shift_id, '\nSend To Wallet:', send_to_wallet, '\nMinumum:', send_min, '\nMaximum:', send_max, '\nExpires At:', expires_at, '\nStatus:', status, '\nAverage Time To Complete:', average_time_to_complete)
 
     # also get the other stuff to confirm that it matches, which it should.
     # {'id': '95b520d9ccd01b23c6c5', 'createdAt': '2023-07-27T06:16:24.524Z', 'depositCoin': 'XMR', 'settleCoin': 'USDC', 'depositNetwork': 'monero', 'settleNetwork': 'polygon', 'depositAddress': '4Bh68jCUZGHbVu45zCVvtcMYesHuduwgajoQcdYRjUQcY6MNa8qd67vTfSNWdtrc33dDECzbPCJeQ8HbiopdeM7Ej3qLTv2mWCwMgFHsyQ', 'settleAddress': '0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D', 'depositMin': '0.018337408314', 'depositMax': '30.56234719', 'type': 'variable', 'expiresAt': '2023-08-03T06:16:24.524Z', 'status': 'waiting', 'averageShiftSeconds': '28.21795'}
 
     # KEEP ADDING MORE HERE TO FINISH THIS FUNCTION ##################################################################################################################
-    # Get wallet address to send to
+    if send_min <= amount_to_convert <= send_max:
+        # The amount is supported
+        print(f'Converting! This may take up to: {average_time_to_complete} to complete.')
+        # A datetime check would be good to add here to make sure that it isn't expired (should always be fine though)
+        wallet.send_monero(destination_address=send_to_wallet, amount=amount_to_convert)
 
-    # Send the coins
-    import Monero_Business_Wallet as wallet
-
-    wallet.send_monero(destination_address=send_to_wallet, amount=amount_to_convert)
-
-    pass
+    elif amount_to_convert < send_min:
+        print("Can't convert this little! Wait until you have more.")
+    elif amount_to_convert > send_max:
+        print('This is too much to convert!')
+        # Add functionality later like cutting the amount in half and trying again or something.
+    else:
+        print('Unexpected error.')
 
 
 def with_trocador():
@@ -239,8 +246,8 @@ def create_shift_with_sideshift(converting_from, shift_to_coin, to_wallet, on_ne
 
 
 # TESTING ##############################################################################################################
-#get_networks_for_coin_from_changenow('USDT')
-#get_networks_for_coin_from_sideshift('USDT')
-#get_networks_for_coin_from_trocador('USDT')
+#get_networks_for_coin_from_changenow('DAI')
+#get_networks_for_coin_from_sideshift('DAI')
+#get_networks_for_coin_from_trocador('DAI')
 
-#with_sideshift(shift_to_coin='USDC', to_wallet='0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D', on_network='Polygon', amount_to_swap=111)
+with_sideshift(shift_to_coin='USDC', to_wallet='0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D', on_network='Polygon', amount_to_convert=111)
