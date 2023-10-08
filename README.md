@@ -12,7 +12,13 @@ The customer sends Monero, you recieve cash in your bank account. (IN PROGRESS! 
 </p>
 
 ## Mission Statement
-The goal of this project is to reduce the barrier to entry for merchants, and increase acessability/usage of Monero by creating a simple, user-friendly way for merchants to accept XMR and receive USD. 
+The goal of this project is to reduce the barrier to entry for merchants, and increase acessability/usage of Monero by creating a simple, user-friendly way for merchants to accept XMR. 
+
+## Planned Features
+- Receive funds from customers.
+- Record payments received to a local csv spreadsheet (including XMR amount, USD value at the time received, payment_id, and more).
+- This spreadsheet can be used to automatically "detect" when a customer has paid for their order (I plan to create additional software that helps with this).
+- Auto-forward received funds to cold storage (or auto-convert to stable coins, which can easily be sold for USD)
 
 ## How It Works: 
 * Launch the wallet.
