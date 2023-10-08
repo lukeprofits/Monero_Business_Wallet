@@ -1,4 +1,5 @@
 import os
+import csv
 import time
 import json
 import gzip
@@ -19,7 +20,9 @@ import clipboard
 import Swap_Service_Integrations as swap
 # EXAMPLE: swap.with_sideshift()
 
-
+received_transactions_file = 'received_transactions.csv'
+sent_transactions_file = 'sent_transactions.csv'
+current_monero_price = 150.00  # temp until we have gotten the current price online.
 
 # OVERALL FUNCTIONS ####################################################################################################
 def kill_everything():
@@ -341,7 +344,7 @@ def get_wallet_balance():
         #print(xmr_unlocked_balance)
 
         try:
-            usd_balance = format(monero_usd_price.calculate_usd_from_monero(float(xmr_balance)), ".2f")
+            usd_balance = format(monero_usd_price.calculate_usd_from_monero(monero_amount=float(xmr_balance), print_price_to_console=False, monero_price=current_monero_price), ".2f")
         except:
             usd_balance = '---.--'
 
@@ -359,7 +362,7 @@ def get_wallet_balance_in_xmr_minus_one_usd():
     # Some extra balance is needed for transaction fees. Generally less than $0.01, but leaving $1 to future-proof.
     wallet_balance_xmr, wallet_balance_usd, xmr_unlocked_balance = get_wallet_balance()
 
-    monero_amount_worth_one_usd = monero_usd_price.calculate_monero_from_usd(usd_amount=1)
+    monero_amount_worth_one_usd = monero_usd_price.calculate_monero_from_usd(usd_amount=1, print_price_to_console=False, monero_price=current_monero_price)
     #print(wallet_balance_xmr)
     #print(monero_amount_worth_one_usd)
 
@@ -433,6 +436,138 @@ def send_monero(destination_address, amount, payment_id=None):
         print('Wallet is not a valid monero wallet address.')
 
 
+def get_all_transactions():
+    global local_rpc_url, rpc_username, rpc_password
+
+    headers = {"content-type": "application/json"}
+    payload = {
+        "jsonrpc": "2.0",
+        "id": "0",
+        "method": "get_transfers",
+        "params": {
+            "in": True,
+            "out": True,
+            "pending": True,
+            "failed": True,
+        }
+    }
+
+    response = requests.post(local_rpc_url, headers=headers, data=json.dumps(payload), auth=(rpc_username, rpc_password))
+    response_data = response.json()
+
+    #print('WE GOT:')
+    #print(response_data)
+
+    if "error" in response_data:
+        raise ValueError(f"RPC Error {response_data['error']['code']}: {response_data['error']['message']}")
+
+    result_data = response_data.get("result", {})
+    all_transfers = []
+
+    # Iterate over each direction and aggregate the transactions
+    for direction in ["in", "out", "pending", "failed"]:
+        transactions = result_data.get(direction, [])
+        all_transfers.extend(transactions)
+
+    return all_transfers
+
+
+def filter_transactions(transfers, direction):
+    """
+    Filter transactions based on the specified direction.
+
+    Parameters:
+    - transfers (list of dict): List of transactions.
+    - direction (str): The direction to filter by. Options are "in", "out", "pending", "failed"
+
+    Returns:
+    - list of dict: Filtered transactions.
+    """
+
+    # Use a list comprehension to filter the transactions based on direction
+    filtered_transfers = [transaction for transaction in transfers if transaction.get("type") == direction]
+
+    return filtered_transfers
+
+
+def write_transactions_to_csv(transactions, filename=received_transactions_file):
+    # List to store existing transactions
+    existing_txids = []
+
+    # Column names as variables (so they can be changed in one place)
+    transaction_id_name = 'Transaction ID'
+    usd_amount_name = 'USD Amount'
+    xmr_amount_name = 'XMR Amount'
+    atomic_units_amount_name = 'Atomic Units Amount'
+    timestamp_name = 'Timestamp'
+    wallet_address_name = 'Wallet Address'
+
+    # Columns to exclude
+    exclude_columns = ["amounts", "double_spend_seen", "fee", "locked", "subaddr_index", "subaddr_indices", "suggested_confirmations_threshold", "unlock_time"]
+
+    # Columns to rename
+    rename_columns = {
+        "amount": atomic_units_amount_name,
+        "confirmations": "Confirmations When Recorded",
+        "height": "Block Height",
+        "timestamp": timestamp_name,
+        "type": "Payment Direction",
+        "payment_id": "Payment ID",
+        "note": "Note",
+        "txid": transaction_id_name,
+        "address": wallet_address_name,
+    }
+
+    # Order of columns
+    desired_order = [timestamp_name, usd_amount_name, xmr_amount_name, atomic_units_amount_name, "Payment ID", "Note", "Transaction ID", "Confirmations When Recorded", wallet_address_name]
+
+    # If the file exists, read it to get the existing txids
+    if os.path.exists(filename):
+        with open(filename, mode='r', newline='', encoding='utf-8') as file:
+            reader = csv.DictReader(file)
+            for row in reader:
+                existing_txids.append(row[transaction_id_name])
+
+    # Filter transactions based on whether their transaction ID is already recorded
+    new_transactions = [tx for tx in transactions if tx["txid"] not in existing_txids]
+
+    # Remove unwanted columns and rename columns as necessary
+    for tx in new_transactions:
+        for col in exclude_columns:
+            if col in tx:
+                del tx[col]
+        for old_name, new_name in rename_columns.items():
+            if old_name in tx:
+                tx[new_name] = tx.pop(old_name)
+
+        # Do Currency Conversions
+        # NOTE: IT IS REALLY STUPID TO LOOK UP THE PRICE OF MONERO FOR EVERY TRANSACTION. FIX THIS SO WE AREN't SPAMMING REQUESTS.
+
+        tx[xmr_amount_name] = monero_usd_price.calculate_monero_from_atomic_units(atomic_units=tx[atomic_units_amount_name])
+        tx[usd_amount_name] = monero_usd_price.calculate_usd_from_atomic_units(atomic_units=tx[atomic_units_amount_name], print_price_to_console=False, monero_price=current_monero_price,)
+
+        # Convert from a POSIX timestamp to a human-readable format
+        tx[timestamp_name] = datetime.fromtimestamp(tx[timestamp_name]).strftime('%Y-%m-%d %H:%M:%S')
+
+    # Sort new_transactions based on timestamp
+    new_transactions.sort(key=lambda x: datetime.strptime(x[timestamp_name], '%Y-%m-%d %H:%M:%S'))
+
+    # Write the new transactions to the CSV
+    with open(filename, mode='a', newline='', encoding='utf-8') as file:
+        writer = csv.DictWriter(file, fieldnames=desired_order)
+
+        # If the CSV was empty, write the headers
+        if file.tell() == 0:
+            writer.writeheader()
+
+        for tx in new_transactions:
+            # Use the desired order to write rows
+            ordered_tx = {col: tx[col] for col in desired_order}
+            writer.writerow(ordered_tx)
+
+    print(f'Wrote to {filename}')
+
+
 # GUI FUNCTIONS ########################################################################################################
 def update_gui_balance():
     global wallet_balance_xmr, wallet_balance_usd, wallet_address
@@ -453,6 +588,33 @@ def update_gui_balance():
 
         except Exception as e:
             print(f'Exception in thread "update_gui_balance: {e}"')
+
+
+def check_for_new_transactions():
+    global current_monero_price
+
+    while not stop_flag.is_set():
+        try:
+            current_monero_price = monero_usd_price.median_price(print_price_to_console=False)
+            print(f'Got current Monero price: {current_monero_price}')
+
+            # Get All Transactions
+            transactions = get_all_transactions()
+
+            # Filter to incoming/outgoing
+            incoming_filtered_tx = filter_transactions(transfers=transactions, direction='in')
+            outgoing_filtered_tx = filter_transactions(transfers=transactions, direction='out')
+
+            # Write new ones to csv
+            write_transactions_to_csv(transactions=incoming_filtered_tx, filename=received_transactions_file)
+            write_transactions_to_csv(transactions=outgoing_filtered_tx, filename=sent_transactions_file)
+            print('Wrote new transactions to csv files.')
+
+            # Wait 2 minutes (Monero has a 2-minute block time).
+            time.sleep(120)
+
+        except Exception as e:
+            print(f'Exception in thread "check_for_new_transactions: {e}"')
 
 
 def make_transparent():
@@ -820,7 +982,6 @@ if not forward and not convert:
 # ADD A WALLET #########################################################################################################
 
 
-
 # START PREREQUISITES ##################################################################################################
 start_block_height = check_if_wallet_exists()  # auto-create one if it doesn't exist
 
@@ -916,8 +1077,13 @@ def create_window():  # Creates the main window and returns it
 
 window.close()
 
-# Start a thread to update balance every 5 seconds
+# Start a thread to continually update displayed GUI balance every 5 seconds
 threading.Thread(target=update_gui_balance).start()
+
+# Start a thread to continually update the payments received/sent csv files
+threading.Thread(target=check_for_new_transactions).start()
+
+time.sleep(1)
 
 # Create the window
 window = create_window()
