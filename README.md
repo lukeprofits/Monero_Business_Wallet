@@ -27,7 +27,7 @@ The goal of this project is to reduce the barrier to entry for merchants, and in
 
 * Configure additional privacy settings if desired.
 
-* Leave the wallet open and running. Incoming payments will automatically be recorded in a local spreadsheet (for taxes), and will then be forwarded based on your preferences.
+* Leave the wallet open and running. Incoming payments will automatically be recorded in a local spreadsheet (for taxes & so that payments received can be auto-detected), and will then be forwarded based on your preferences.
 
 ## How To Use:
 * Make sure you have [Python 3.8](https://www.python.org/downloads/) or newer installed
