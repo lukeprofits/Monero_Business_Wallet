@@ -5,6 +5,7 @@ import json
 import time
 import monero_usd_price
 import requests
+from datetime import datetime, timedelta
 from fp.fp import FreeProxy
 
 import Monero_Business_Wallet as wallet
@@ -108,39 +109,83 @@ def with_sideshift(shift_to_coin, to_wallet, on_network, amount_to_convert, prox
     # (makes all items in both lists lowercase, and then uses "&" to find the intersection)
     on_network = set(n.lower() for n in supported_network_names[on_network]) & set(nn.lower() for nn in get_networks_for_coin_from_sideshift(shift_to_coin))
     on_network = on_network.pop()
-    #print(on_network)
+    print(on_network)
 
     # Create variable-rate swap
     response = create_shift_with_sideshift(converting_from=converting_from, shift_to_coin=shift_to_coin, to_wallet=to_wallet, on_network=on_network)
     print(response)
 
+    # Example
+    """{'id': '95b520d9ccd01b23c6c5', 'createdAt': '2023-07-27T06:16:24.524Z', 'depositCoin': 'XMR', 'settleCoin': 'USDC',
+    'depositNetwork': 'monero', 'settleNetwork': 'polygon', 'depositAddress': '4Bh68jCUZGHbVu45zCVvtcMYesHuduwgajoQcdYRjUQcY6MNa8qd67vTfSNWdtrc33dDECzbPCJeQ8HbiopdeM7Ej3qLTv2mWCwMgFHsyQ',
+    'settleAddress': '0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D', 'depositMin': '0.018337408314',
+    'depositMax': '30.56234719', 'type': 'variable', 'expiresAt': '2023-08-03T06:16:24.524Z', 'status': 'waiting', 
+    'averageShiftSeconds': '28.21795'}"""
+
     shift_id = response['id']
+    created_at = response['createdAt']  #
+    deposit_coin = response['depositCoin']  #
+    settle_coin = response['settleCoin']  #
+    settle_network = response['settleNetwork']  #
     send_to_wallet = response['depositAddress']
+    settle_address = response['settleAddress']  #
     send_min = response['depositMin']
     send_max = response['depositMax']
+    swap_type = response['status']  #
     expires_at = response['expiresAt']
     status = response['status']
     average_time_to_complete = response['averageShiftSeconds']
 
-    print('Shift ID:', shift_id, '\nSend To Wallet:', send_to_wallet, '\nMinumum:', send_min, '\nMaximum:', send_max, '\nExpires At:', expires_at, '\nStatus:', status, '\nAverage Time To Complete:', average_time_to_complete)
+    print('Shift ID:', shift_id,
+          '\nSend To Wallet:', send_to_wallet,
+          '\nMinumum:', send_min,
+          '\nMaximum:', send_max,
+          '\nExpires At:', expires_at,
+          '\nStatus:', status,
+          '\nAverage Time To Complete:', average_time_to_complete)
 
-    # also get the other stuff to confirm that it matches, which it should.
-    # {'id': '95b520d9ccd01b23c6c5', 'createdAt': '2023-07-27T06:16:24.524Z', 'depositCoin': 'XMR', 'settleCoin': 'USDC', 'depositNetwork': 'monero', 'settleNetwork': 'polygon', 'depositAddress': '4Bh68jCUZGHbVu45zCVvtcMYesHuduwgajoQcdYRjUQcY6MNa8qd67vTfSNWdtrc33dDECzbPCJeQ8HbiopdeM7Ej3qLTv2mWCwMgFHsyQ', 'settleAddress': '0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D', 'depositMin': '0.018337408314', 'depositMax': '30.56234719', 'type': 'variable', 'expiresAt': '2023-08-03T06:16:24.524Z', 'status': 'waiting', 'averageShiftSeconds': '28.21795'}
+    # Confirm that everything in the swap matches what we want.
+    is_at_least_ten_minutes_before = datetime.utcnow() + timedelta(minutes=10) <= datetime.strptime(expires_at, "%Y-%m-%dT%H:%M:%S.%fZ")
+    if (
+        deposit_coin.lower() == converting_from.lower() and
+        settle_coin.lower() == shift_to_coin.lower() and
+        settle_network.lower() == on_network.lower() and
+        settle_address == to_wallet and
+        is_at_least_ten_minutes_before and
+        float(average_time_to_complete) <= float(60 * 60 * 24) and  # 24hrs
+        send_min <= amount_to_convert
+        ):
 
-    # KEEP ADDING MORE HERE TO FINISH THIS FUNCTION ##################################################################################################################
-    if send_min <= amount_to_convert <= send_max:
-        # The amount is supported
-        print(f'Converting! This may take up to: {average_time_to_complete} to complete.')
-        # A datetime check would be good to add here to make sure that it isn't expired (should always be fine though)
-        wallet.send_monero(destination_address=send_to_wallet, amount=amount_to_convert)
+        # If we made it here, proceed with the swap
+        if amount_to_convert >= send_max:
+            print('This is too much to convert!')
+            smaller_amount = amount_to_convert
+            attempt_count = 0
 
-    elif amount_to_convert < send_min:
-        print("Can't convert this little! Wait until you have more.")
-    elif amount_to_convert > send_max:
-        print('This is too much to convert!')
-        # Add functionality later like cutting the amount in half and trying again or something.
+            while smaller_amount >= send_max and attempt_count < 20:  # arbitrary 20 attempts at cutting it in half.
+                print('...trying with less')
+                smaller_amount /= 2  # Halve the smaller_amount
+
+                if smaller_amount < send_max:
+                    print(f'Converting! This may take up to: {average_time_to_complete} to complete.')
+                    wallet.send_monero(destination_address=send_to_wallet, amount=smaller_amount)
+                    break  # Exit the loop since we found an acceptable amount
+
+                attempt_count += 1  # Increment the counter
+
+            swap_info = {'sent_xmr_amount': smaller_amount, 'to_wallet': send_to_wallet, 'swap_id': shift_id, 'service': 'sideshift'}
+            return swap_info
+
+        else:  # We can convert this amount because it is above min and below max.
+            print(f'Converting! This may take up to: {average_time_to_complete} to complete.')
+            wallet.send_monero(destination_address=send_to_wallet, amount=amount_to_convert)
+            swap_info = {'sent_xmr_amount': amount_to_convert, 'to_wallet': send_to_wallet, 'swap_id': shift_id, 'service': 'sideshift'}
+            return swap_info
+
+    # There is a problem. DO NOT SWAP!
     else:
-        print('Unexpected error.')
+        print('DO NOT SWAP')
+        return dict()
 
 
 def with_trocador():

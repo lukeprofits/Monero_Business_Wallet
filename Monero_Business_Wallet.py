@@ -13,16 +13,18 @@ import subprocess
 from lxml import html
 import monero_usd_price
 import PySimpleGUI as sg
-from datetime import datetime
+from datetime import datetime, timezone
 import platform
 import clipboard
 
 import Swap_Service_Integrations as swap
-# EXAMPLE: swap.with_sideshift()
 
 received_transactions_file = 'received_transactions.csv'
 sent_transactions_file = 'sent_transactions.csv'
+swap_file = 'swap_info.csv'
+
 current_monero_price = 150.00  # temp until we have gotten the current price online.
+usd_amount_to_leave_in_wallet_for_tx_fees = 1
 
 # OVERALL FUNCTIONS ####################################################################################################
 def kill_everything():
@@ -357,16 +359,16 @@ def get_wallet_balance():
         return '--.------------', '---.--'
 
 
-def get_wallet_balance_in_xmr_minus_one_usd():
-    # This returns the monero amount in the wallet minus $1. (or 0 if there is less than $1 in the wallet)
+def get_wallet_balance_in_xmr_minus_amount(amount_in_usd=1):
+    # This returns the monero amount in the wallet minus an amount. Default $1. (or 0 if there is less than $1 in the wallet)
     # Some extra balance is needed for transaction fees. Generally less than $0.01, but leaving $1 to future-proof.
     wallet_balance_xmr, wallet_balance_usd, xmr_unlocked_balance = get_wallet_balance()
 
-    monero_amount_worth_one_usd = monero_usd_price.calculate_monero_from_usd(usd_amount=1, print_price_to_console=False, monero_price=current_monero_price)
+    monero_amount_worth_amount_in_usd = monero_usd_price.calculate_monero_from_usd(usd_amount=amount_in_usd, print_price_to_console=False, monero_price=current_monero_price)
     #print(wallet_balance_xmr)
     #print(monero_amount_worth_one_usd)
 
-    wallet_balance_minus_one_usd = wallet_balance_xmr - monero_amount_worth_one_usd
+    wallet_balance_minus_one_usd = wallet_balance_xmr - monero_amount_worth_amount_in_usd
     #print(wallet_balance_minus_one_usd)
     if wallet_balance_minus_one_usd > 0:
         return wallet_balance_minus_one_usd
@@ -568,6 +570,28 @@ def write_transactions_to_csv(transactions, filename=received_transactions_file)
     print(f'Wrote to {filename}')
 
 
+def write_swap_to_csv(swap_info, filename=swap_file):
+    # Check if file exists
+    file_exists = os.path.isfile(filename)
+
+    # If file doesn't exist, write headers first
+    if not file_exists:
+        with open(filename, 'w', newline='', encoding='utf-8') as file:
+            writer = csv.writer(file)
+            # Add 'timestamp' to the beginning of the headers
+            headers = ['timestamp'] + list(swap_info.keys())
+            writer.writerow(headers)
+
+    # Write (or append) the data
+    with open(filename, 'a', newline='', encoding='utf-8') as file:
+        writer = csv.writer(file)
+        # Get current timestamp in RFC3339 format
+        current_timestamp = datetime.now(timezone.utc).isoformat()
+        # Add timestamp to the beginning of the data
+        data = [current_timestamp] + list(swap_info.values())
+        writer.writerow(data)
+
+
 # GUI FUNCTIONS ########################################################################################################
 def update_gui_balance():
     global wallet_balance_xmr, wallet_balance_usd, wallet_address
@@ -609,6 +633,52 @@ def check_for_new_transactions():
             write_transactions_to_csv(transactions=incoming_filtered_tx, filename=received_transactions_file)
             write_transactions_to_csv(transactions=outgoing_filtered_tx, filename=sent_transactions_file)
             print('Wrote new transactions to csv files.')
+
+            # Wait 2 minutes (Monero has a 2-minute block time).
+            time.sleep(120)
+
+        except Exception as e:
+            print(f'Exception in thread "check_for_new_transactions: {e}"')
+
+
+def autoforward_monero():
+    global current_monero_price
+
+    while not stop_flag.is_set():
+        try:
+            # See if our balance is over usd_amount_to_leave_in_wallet_for_tx_fees
+            xmr_wallet_balance_to_forward = get_wallet_balance_in_xmr_minus_amount(amount_in_usd=usd_amount_to_leave_in_wallet_for_tx_fees)
+            if xmr_wallet_balance_to_forward > 0:
+                # Check if the "wait until over $100" box is checked
+                if False: ######################################################################################################################################################## ADD THE BOX-CHECKING LOGIC ########
+                    # Make sure we have over $100
+                    if get_wallet_balance_in_xmr_minus_amount(amount_in_usd=(100 + usd_amount_to_leave_in_wallet_for_tx_fees)):  # Evaluates to False if we don't have enough
+                        # Are we converting, or forwarding?
+                        ################################################## ADD THE REST OF THE LOGIC HERE ##################################################################################
+                    else:
+                        pass
+
+                # "wait until over $100" box is NOT checked
+                else:
+                    # Are we converting, or forwarding?
+                    if convert:
+                        swap_info = swap.with_sideshift(shift_to_coin=convert_coin, to_wallet=convert_wallet, on_network=convert_network, amount_to_convert=xmr_wallet_balance_to_forward)
+                        if swap_info:
+                            print(swap_info)
+                            write_swap_to_csv(swap_info=swap_info)  # Maybe also add a thing to include the IP we used.
+                            # Optionally add a "check for success" but not sure if there is really a point.
+
+                        else:
+                            print('There was a problem, so we did not swap anything.')
+
+                    elif forward:
+                        # Transfer what we have
+                        send_monero(destination_address=cold_wallet, amount=xmr_wallet_balance_to_forward)
+                        pass
+
+            # Not enough to bother transferring
+            else:
+                print('No balance worth forwarding.')
 
             # Wait 2 minutes (Monero has a 2-minute block time).
             time.sleep(120)
@@ -976,6 +1046,10 @@ elif os.path.exists(convert_wallet_filename):
 
 if not forward and not convert:
     prompt_for_convert_forward_selection()
+
+# Make sure we are ONLY forwarding and NOT converting if both are configured.
+if forward and convert:
+    convert = False
 # END CONVERT OR FORWARD SECTION
 
 
@@ -1077,11 +1151,17 @@ def create_window():  # Creates the main window and returns it
 
 window.close()
 
-# Start a thread to continually update displayed GUI balance every 5 seconds
+
+# START THREADS ########################################################################################################
+
+# Continually update displayed GUI balance every 5 seconds
 threading.Thread(target=update_gui_balance).start()
 
-# Start a thread to continually update the payments received/sent csv files
+# Continually update the payments received/sent csv files every 2 min (every block)
 threading.Thread(target=check_for_new_transactions).start()
+
+# Continually auto-forward Monero if conditions are met every 2 min (every block)
+threading.Thread(target=autoforward_monero).start()
 
 time.sleep(1)
 
