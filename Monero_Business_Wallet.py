@@ -19,6 +19,7 @@ import clipboard
 
 import swap_functions as swap
 import wallet_functions as wallet
+import gui_functions as gui
 import config as cfg
 
 # OPEN STUFF FUNCTIONS #################################################################################################
@@ -142,7 +143,7 @@ def generate_monero_qr(wallet_address):
         qr = qrcode.QRCode(version=1, box_size=3, border=4)
         qr.add_data("monero:" + wallet_address)
         qr.make(fit=True)
-        qr_img = qr.make_image(fill_color=monero_orange, back_color=ui_overall_background)
+        qr_img = qr.make_image(fill_color=cfg.monero_orange, back_color=cfg.ui_overall_background)
         # Save the image to a file
         filename = "wallet_qr_code.png"
         with open(filename, "wb") as f:
@@ -366,34 +367,34 @@ def update_gui_balance():
 # GUI LAYOUT FUNCTIONS #################################################################################################
 def make_layout_part_for_forwarding_to():
     if cfg.convert:  # Conversion Wallet
-        return [sg.Text(f'      Forwarding To:', size=(15, 1), font=(font, 14), pad=(10, 0), text_color=ui_sub_font, background_color=ui_overall_background), sg.Text(f'{cfg.convert_wallet}', size=(48, 1), font=(font, 14), pad=(10, 0), text_color=monero_orange, background_color=ui_overall_background)]
+        return [sg.Text(f'      Forwarding To:', size=(15, 1), font=(cfg.font, 14), pad=(10, 0), text_color=cfg.ui_sub_font, background_color=cfg.ui_overall_background), sg.Text(f'{cfg.convert_wallet}', size=(48, 1), font=(cfg.font, 14), pad=(10, 0), text_color=cfg.monero_orange, background_color=cfg.ui_overall_background)]
     elif cfg.forward:  # Cold Storage
-        return [sg.Text(f'      Forwarding To:', size=(15, 1), font=(font, 14), pad=(10, 0), text_color=ui_sub_font, background_color=ui_overall_background), sg.Text(f'{cfg.cold_wallet}', size=(90, 1), font=(font, 10), pad=(10, 0), text_color=monero_orange, background_color=ui_overall_background)]
+        return [sg.Text(f'      Forwarding To:', size=(15, 1), font=(cfg.font, 14), pad=(10, 0), text_color=cfg.ui_sub_font, background_color=cfg.ui_overall_background), sg.Text(f'{cfg.cold_wallet}', size=(90, 1), font=(cfg.font, 10), pad=(10, 0), text_color=cfg.monero_orange, background_color=cfg.ui_overall_background)]
 
 
 def make_layout_part_for_forwarding_to_2():
     if cfg.convert:  # Conversion Wallet
-        return [sg.Text(f'                        ({cfg.convert_coin} on {cfg.convert_network} network)', size=(48, 1), font=(font, 14), text_color=monero_orange, background_color=ui_overall_background, justification='c')]
+        return [sg.Text(f'                        ({cfg.convert_coin} on {cfg.convert_network} network)', size=(48, 1), font=(cfg.font, 14), text_color=cfg.monero_orange, background_color=cfg.ui_overall_background, justification='c')]
     else:
         return []
 
 def make_please_wait_popup():
     layout = [
-        [sg.Text("Please Wait: Monero RPC Server Is Starting", key="wait_text", font=(font, 18), background_color=ui_overall_background)],
-        [sg.Text("                                   This may take a few minutes on first launch.", key="wait_text2", font=(font, 10), background_color=ui_overall_background)]
+        [sg.Text("Please Wait: Monero RPC Server Is Starting", key="wait_text", font=(cfg.font, 18), background_color=cfg.ui_overall_background)],
+        [sg.Text("                                   This may take a few minutes on first launch.", key="wait_text2", font=(cfg.font, 10), background_color=cfg.ui_overall_background)]
     ]
     return layout
 
 def make_node_window_layout():
     layout = [[sg.Column([
-        [sg.Text("Add A Monero Node:", font=(font, 24), text_color=monero_orange, background_color=ui_overall_background)],
-        [sg.Text("     For maximum privacy: Add your own node, or one run by someone you trust     \n", font=(font, 16), text_color=ui_sub_font, background_color=ui_overall_background)],
-        [sg.Input(default_text='node.sethforprivacy.com:18089', key='custom_node', justification='center', size=(30, 2), font=(font, 18)), sg.Button('Add Node', key='add_node', font=(font, 12), size=(12, 1), button_color=(ui_button_a_font, ui_button_a))],
-        [sg.Text('', font=(font, 4))],
-        [sg.Text("...or add a random node (NOT RECOMMENDED)\n", font=(font, 12), text_color=ui_sub_font, background_color=ui_overall_background)],
-        [sg.Button('          Add A Random Node          ', key='add_random_node', font=(font, 12), button_color=(ui_button_b_font, ui_button_b))],
+        [sg.Text("Add A Monero Node:", font=(cfg.font, 24), text_color=cfg.monero_orange, background_color=cfg.ui_overall_background)],
+        [sg.Text("     For maximum privacy: Add your own node, or one run by someone you trust     \n", font=(cfg.font, 16), text_color=cfg.ui_sub_font, background_color=cfg.ui_overall_background)],
+        [sg.Input(default_text='node.sethforprivacy.com:18089', key='custom_node', justification='center', size=(30, 2), font=(cfg.font, 18)), sg.Button('Add Node', key='add_node', font=(cfg.font, 12), size=(12, 1), button_color=(cfg.ui_button_a_font, cfg.ui_button_a))],
+        [sg.Text('', font=(cfg.font, 4))],
+        [sg.Text("...or add a random node (NOT RECOMMENDED)\n", font=(cfg.font, 12), text_color=cfg.ui_sub_font, background_color=cfg.ui_overall_background)],
+        [sg.Button('          Add A Random Node          ', key='add_random_node', font=(cfg.font, 12), button_color=(cfg.ui_button_b_font, cfg.ui_button_b))],
         [sg.Text('')],
-        [sg.Text("Random nodes pulled from: https://Monero.fail\n", font=(font, 10), text_color=monero_orange, background_color=ui_overall_background)],
+        [sg.Text("Random nodes pulled from: https://Monero.fail\n", font=(cfg.font, 10), text_color=cfg.monero_orange, background_color=cfg.ui_overall_background)],
         ], element_justification='c', justification='center')
     ]]
 
@@ -402,12 +403,12 @@ def make_node_window_layout():
 
 def make_convert_forward_window_layout():
     layout = [[sg.Column([
-        [sg.Text("What Should Be Done With Received Funds?", font=(font, 24), text_color=monero_orange, background_color=ui_overall_background)],
-        #[sg.Text("     For maximum privacy: Add your own node, or one run by someone you trust     \n", font=(font, 16), text_color=ui_sub_font, background_color=ui_overall_background)],
-        [sg.Text('', font=(font, 4))],
-        [sg.Button('   Keep As Monero & Forward To Cold Storage   ', key='forward', font=(font, 12), size=(80, 1), button_color=(ui_button_a_font, ui_button_a))],
-        [sg.Text('', font=(font, 1))],
-        [sg.Button('       Convert To USD & Send To Exchange      ', key='convert', font=(font, 12), size=(80, 1), button_color=(ui_button_b_font, ui_button_b))],
+        [sg.Text("What Should Be Done With Received Funds?", font=(cfg.font, 24), text_color=cfg.monero_orange, background_color=cfg.ui_overall_background)],
+        #[sg.Text("     For maximum privacy: Add your own node, or one run by someone you trust     \n", font=(cfg.font, 16), text_color=cfg.ui_sub_font, background_color=cfg.ui_overall_background)],
+        [sg.Text('', font=(cfg.font, 4))],
+        [sg.Button('   Keep As Monero & Forward To Cold Storage   ', key='forward', font=(cfg.font, 12), size=(80, 1), button_color=(cfg.ui_button_a_font, cfg.ui_button_a))],
+        [sg.Text('', font=(cfg.font, 1))],
+        [sg.Button('       Convert To USD & Send To Exchange      ', key='convert', font=(cfg.font, 12), size=(80, 1), button_color=(cfg.ui_button_b_font, cfg.ui_button_b))],
         [sg.Text('')],
         ], element_justification='c', justification='center')
     ]]
@@ -418,10 +419,10 @@ def make_convert_forward_window_layout():
 def prompt_for_forward_to_cold_storage():
     # Define the window's layout
     layout = [[sg.Column([
-        [sg.Text("Enter A Monero Wallet Address To Forward Funds To:", font=(font, 24), text_color=monero_orange, background_color=ui_overall_background)],
-        [sg.Text("     This software (a hot wallet) is not a good place to store funds longterm. They should be kept in cold storage.      \n", font=(font, 16), text_color=ui_sub_font, background_color=ui_overall_background)],
-        #[sg.Text('', font=(font, 4))],
-        [sg.Text("Auto-Forwarding To:", font=(font, 14), background_color=ui_overall_background, text_color=ui_sub_font), sg.Input(size=(102, 1), key="cold_storage_wallet"), sg.Button('   Submit   ', key='submit', font=(font, 12), size=(12, 1), button_color=(ui_button_a_font, ui_button_a))],
+        [sg.Text("Enter A Monero Wallet Address To Forward Funds To:", font=(cfg.font, 24), text_color=cfg.monero_orange, background_color=cfg.ui_overall_background)],
+        [sg.Text("     This software (a hot wallet) is not a good place to store funds longterm. They should be kept in cold storage.      \n", font=(cfg.font, 16), text_color=cfg.ui_sub_font, background_color=cfg.ui_overall_background)],
+        #[sg.Text('', font=(cfg.font, 4))],
+        [sg.Text("Auto-Forwarding To:", font=(cfg.font, 14), background_color=cfg.ui_overall_background, text_color=cfg.ui_sub_font), sg.Input(size=(102, 1), key="cold_storage_wallet"), sg.Button('   Submit   ', key='submit', font=(cfg.font, 12), size=(12, 1), button_color=(cfg.ui_button_a_font, cfg.ui_button_a))],
         [sg.Text('')],
     ], element_justification='c', justification='center')
     ]]
@@ -455,17 +456,17 @@ def prompt_for_convert_to_usd():
     ###################### LEFT OFF WORKING HERE. COPY/PASTE UPDATING THE DATA IN THIS FUNCTION ###################################################################################################################
     # Define the window's layout
     layout = [[sg.Column([
-        [sg.Text("Auto-Convert To USD:", font=(font, 24), text_color=monero_orange, background_color=ui_overall_background)],
-        [sg.Text('      Make sure to select the correct coin and network for your wallet, or it will result in loss of funds.      ', font=(font, 12), background_color=ui_overall_background, text_color=ui_sub_font)],
+        [sg.Text("Auto-Convert To USD:", font=(cfg.font, 24), text_color=cfg.monero_orange, background_color=cfg.ui_overall_background)],
+        [sg.Text('      Make sure to select the correct coin and network for your wallet, or it will result in loss of funds.      ', font=(cfg.font, 12), background_color=cfg.ui_overall_background, text_color=cfg.ui_sub_font)],
         [sg.Text('')],
-        #[sg.Text("     (For lowest fees, use the defaults)      ", font=(font, 16), text_color=ui_sub_font, background_color=ui_overall_background)],
-        #[sg.Text('', font=(font, 4))],
-        [sg.Text("Convert To Coin:", font=(font, 14), background_color=ui_overall_background, text_color=ui_sub_font), sg.Combo(swap.supported_coins, default_value="USDC", key="coin", font=(font, 12), size=(6, 1)),
-         sg.Text("On Network:", font=(font, 14), background_color=ui_overall_background, text_color=ui_sub_font), sg.Combo(swap.supported_networks, default_value="Polygon", key="network", font=(font, 12), size=(16, 1)), sg.Text('     ', background_color=ui_overall_background)],
+        #[sg.Text("     (For lowest fees, use the defaults)      ", font=(cfg.font, 16), text_color=cfg.ui_sub_font, background_color=cfg.ui_overall_background)],
+        #[sg.Text('', font=(cfg.font, 4))],
+        [sg.Text("Convert To Coin:", font=(cfg.font, 14), background_color=cfg.ui_overall_background, text_color=cfg.ui_sub_font), sg.Combo(swap.supported_coins, default_value="USDC", key="coin", font=(cfg.font, 12), size=(6, 1)),
+         sg.Text("On Network:", font=(cfg.font, 14), background_color=cfg.ui_overall_background, text_color=cfg.ui_sub_font), sg.Combo(swap.supported_networks, default_value="Polygon", key="network", font=(cfg.font, 12), size=(16, 1)), sg.Text('     ', background_color=cfg.ui_overall_background)],
         [sg.Text('')],
-        [sg.Text("     Wallet Address:", font=(font, 14), background_color=ui_overall_background, text_color=ui_sub_font), sg.Input(size=(45, 1), key="wallet", default_text='[ Enter a wallet address ]', justification='center')],
+        [sg.Text("     Wallet Address:", font=(cfg.font, 14), background_color=cfg.ui_overall_background, text_color=cfg.ui_sub_font), sg.Input(size=(45, 1), key="wallet", default_text='[ Enter a wallet address ]', justification='center')],
         [sg.Text('')],
-        [sg.Button('      Submit      ', key='submit', font=(font, 12), size=(28, 1), button_color=(ui_button_a_font, ui_button_a))],
+        [sg.Button('      Submit      ', key='submit', font=(cfg.font, 12), size=(28, 1), button_color=(cfg.ui_button_a_font, cfg.ui_button_a))],
         [sg.Text('')],
     ], element_justification='c', justification='center')
     ]]
@@ -529,21 +530,21 @@ def prompt_for_convert_forward_selection():
 
 def create_main_window():  # Creates the main window and returns it
     layout = [
-        [sg.Text("Monero Business Wallet", font=(font, 24), expand_x=True, justification='center', relief=sg.RELIEF_RIDGE, size=(None, 1), pad=(0, 0), text_color=main_text, background_color=ui_overall_background)],
-        [sg.Text("Incoming payments will be recorded and forwarded automatically if the wallet remains open", font=(font, 10), expand_x=True, justification='center', background_color=ui_overall_background, pad=(0, 0))],
-        [sg.Text("", font=(font, 8))],
+        [sg.Text("Monero Business Wallet", font=(cfg.font, 24), expand_x=True, justification='center', relief=sg.RELIEF_RIDGE, size=(None, 1), pad=(0, 0), text_color=cfg.main_text, background_color=cfg.ui_overall_background)],
+        [sg.Text("Incoming payments will be recorded and forwarded automatically if the wallet remains open", font=(cfg.font, 10), expand_x=True, justification='center', background_color=cfg.ui_overall_background, pad=(0, 0))],
+        [sg.Text("", font=(cfg.font, 8))],
             [
                 sg.Column(
                     [
                         ########
-                        [sg.Text(f'        Balance:  ${cfg.wallet_balance_usd} USD', size=(25, 1), font=(font, 18), key='wallet_balance_in_usd', text_color=ui_sub_font, background_color=ui_overall_background)],
-                        [sg.Text(f'        XMR: {cfg.wallet_balance_xmr}', size=(25, 1), font=(font, 18), key='wallet_balance_in_xmr', background_color=ui_overall_background)],
+                        [sg.Text(f'        Balance:  ${cfg.wallet_balance_usd} USD', size=(25, 1), font=(cfg.font, 18), key='wallet_balance_in_usd', text_color=cfg.ui_sub_font, background_color=cfg.ui_overall_background)],
+                        [sg.Text(f'        XMR: {cfg.wallet_balance_xmr}', size=(25, 1), font=(cfg.font, 18), key='wallet_balance_in_xmr', background_color=cfg.ui_overall_background)],
                         [sg.Text('')],
                         [sg.HorizontalSeparator(pad=(90, 0))],
                         [sg.Text('')],
-                        [sg.Text('               ', background_color=ui_overall_background), sg.Checkbox('Forward As Multiple Random Amounts', key='random_amounts', default=True, size=40, background_color=ui_overall_background)],
-                        [sg.Text('               ', background_color=ui_overall_background), sg.Checkbox('Use Random Time Delay Before Forwarding', key='random_delay', default=True, size=40, background_color=ui_overall_background)],
-                        [sg.Text('               ', background_color=ui_overall_background), sg.Checkbox('Do Not Forward Until Balance Is Over $100', key='wait_for_balance', default=False, size=40, background_color=ui_overall_background)],
+                        [sg.Text('               ', background_color=cfg.ui_overall_background), sg.Checkbox('Forward As Multiple Random Amounts', key='random_amounts', default=True, size=40, background_color=cfg.ui_overall_background)],
+                        [sg.Text('               ', background_color=cfg.ui_overall_background), sg.Checkbox('Use Random Time Delay Before Forwarding', key='random_delay', default=True, size=40, background_color=cfg.ui_overall_background)],
+                        [sg.Text('               ', background_color=cfg.ui_overall_background), sg.Checkbox('Do Not Forward Until Balance Is Over $100', key='wait_for_balance', default=False, size=40, background_color=cfg.ui_overall_background)],
                         #[sg.Button("   Copy Wallet Address   ", size=(24, 1), key='copy_address', pad=(10, 10))],
                         ########
 
@@ -553,7 +554,7 @@ def create_main_window():  # Creates the main window and returns it
                 sg.Column(
                     [
                         ########
-                        [sg.Text('Deposit XMR:', size=(20, 1), font=(font, 18), justification='center', text_color=ui_sub_font, background_color=ui_overall_background)],
+                        [sg.Text('Deposit XMR:', size=(20, 1), font=(cfg.font, 18), justification='center', text_color=cfg.ui_sub_font, background_color=cfg.ui_overall_background)],
                         [sg.Column([
                             [sg.Image(generate_monero_qr(wallet_address), size=(147, 147), key='qr_code', pad=(10, 0))],  # Placeholder for the QR code image
                             [sg.Button("Copy Address", size=(16, 1), key='copy_address', pad=(10, 10))],
@@ -563,7 +564,7 @@ def create_main_window():  # Creates the main window and returns it
                     ], expand_x=True, expand_y=True, element_justification='c'
                 )
             ],
-            [sg.Text("", font=(font, 8), expand_x=True, justification='center', size=(None, 1), pad=(0, 0), text_color=main_text, background_color=ui_overall_background)],
+            [sg.Text("", font=(cfg.font, 8), expand_x=True, justification='center', size=(None, 1), pad=(0, 0), text_color=cfg.main_text, background_color=cfg.ui_overall_background)],
 
             ########
             [sg.Column([
@@ -571,59 +572,35 @@ def create_main_window():  # Creates the main window and returns it
                 make_layout_part_for_forwarding_to_2()
                 #[sg.InputText(default_text='[ Enter a wallet address ]', key='withdraw_to_wallet', pad=(10, 10), justification='center', size=(46, 1)),
                 #sg.InputText(default_text=' [ Enter an amount ]', key='withdraw_amount', pad=(10, 10), justification='center', size=(20, 1)),
-                #sg.Button("Send", size=(8, 1), key='send', pad=(10, 10), button_color=(ui_button_b_font, ui_button_b))
+                #sg.Button("Send", size=(8, 1), key='send', pad=(10, 10), button_color=(cfg.ui_button_b_font, cfg.ui_button_b))
                 #],
             ], element_justification='c', justification='center'),
                 sg.Text('', pad=(15, 5))],
             ########
 
-            [sg.Text("", font=(font, 8), expand_x=True, justification='center', size=(None, 1), pad=(0, 0), text_color=main_text, background_color=ui_overall_background)],
+            [sg.Text("", font=(cfg.font, 8), expand_x=True, justification='center', size=(None, 1), pad=(0, 0), text_color=cfg.main_text, background_color=cfg.ui_overall_background)],
     ]
     if platform.system() == 'Darwin':
-        return sg.Window('Monero Business Wallet', layout, margins=(20, 20), titlebar_icon='', titlebar_background_color=ui_overall_background, use_custom_titlebar=False, grab_anywhere=True, icon="./icon.png", finalize=True)
+        return sg.Window('Monero Business Wallet', layout, margins=(20, 20), titlebar_icon='', titlebar_background_color=cfg.ui_overall_background, use_custom_titlebar=False, grab_anywhere=True, icon="./icon.png", finalize=True)
     elif platform.system() == 'Linux':
-        return sg.Window('Monero Business Wallet', layout, margins=(20, 20), titlebar_icon='', titlebar_background_color=ui_overall_background, use_custom_titlebar=False, grab_anywhere=True, icon="./icon.png", finalize=True)
+        return sg.Window('Monero Business Wallet', layout, margins=(20, 20), titlebar_icon='', titlebar_background_color=cfg.ui_overall_background, use_custom_titlebar=False, grab_anywhere=True, icon="./icon.png", finalize=True)
     else:
-        return sg.Window(title_bar_text, layout, margins=(20, 20), titlebar_icon='', titlebar_background_color=ui_overall_background, use_custom_titlebar=True, grab_anywhere=True, icon=icon, finalize=True)
+        return sg.Window(cfg.title_bar_text, layout, margins=(20, 20), titlebar_icon='', titlebar_background_color=cfg.ui_overall_background, use_custom_titlebar=True, grab_anywhere=True, icon=cfg.icon, finalize=True)
 
 
-# THEME VARIABLES ######################################################################################################
-# Hex Colors
-ui_title_bar = '#222222'
-ui_overall_background = '#1D1D1D'
-ui_button_a = '#00A9AF'  # Updated to be a blue-green with grey
-ui_button_a_font = '#F0FFFF'
-ui_button_b = '#716F74'
-ui_button_b_font = '#FFF9FB'
-ui_main_font = '#F4F6EE'
-ui_sub_font = '#A7B2C7'
-ui_lines = '#696563'
-ui_outline = '#2E2E2E'
-ui_barely_visible = '#373737'
-ui_regular = '#FCFCFC'
-monero_grey = '#4c4c4c'
-monero_orange = '#00F6FF'  # Updated to be a blue-green
-monero_white = '#FFFFFF'
-monero_grayscale_top = '#7D7D7D'
-monero_grayscale_bottom = '#505050'
-
-# Set Theme
-icon = 'icon.ico'
-font = 'Nunito Sans'
-title_bar_text = ''
+# SET THEME ############################################################################################################
+# Start with template
 sg.theme('DarkGrey2')
+
 # Modify the colors you want to change
-sg.theme_background_color(ui_overall_background)  # MAIN BACKGROUND COLOR
-sg.theme_button_color((ui_button_a_font, ui_button_a))  # whiteish, blackish
-sg.theme_text_color(monero_orange)  # HEADING TEXT AND DIVIDERS
-main_text = ui_main_font  # this lets separators be orange but text stay white
-subscription_text_color = ui_sub_font
-subscription_background_color = ui_overall_background  # ui_title_bar
-sg.theme_text_element_background_color(ui_title_bar)  # Text Heading Boxes
-sg.theme_element_background_color(ui_title_bar)  # subscriptions & transactions box color
-sg.theme_element_text_color(ui_sub_font)  # My Subscriptions Text Color
-sg.theme_input_background_color(ui_title_bar)
-sg.theme_input_text_color(monero_orange)
+sg.theme_background_color(cfg.ui_overall_background)  # MAIN BACKGROUND COLOR
+sg.theme_button_color((cfg.ui_button_a_font, cfg.ui_button_a))  # whiteish, blackish
+sg.theme_text_color(cfg.monero_orange)  # HEADING TEXT AND DIVIDERS
+sg.theme_text_element_background_color(cfg.ui_title_bar)  # Text Heading Boxes
+sg.theme_element_background_color(cfg.ui_title_bar)  # subscriptions & transactions box color
+sg.theme_element_text_color(cfg.ui_sub_font)  # My Subscriptions Text Color
+sg.theme_input_background_color(cfg.ui_title_bar)
+sg.theme_input_text_color(cfg.monero_orange)
 sg.theme_border_width(0)
 sg.theme_slider_border_width(0)
 
@@ -635,7 +612,7 @@ if os.path.exists(cfg.node_filename):
         node = f.readline().strip()  # read first line into 'node'
 else:
     # welcome popup
-    sg.popup(cfg.welcome_popup_text, icon=icon, no_titlebar=True, background_color=ui_overall_background, grab_anywhere=True)
+    sg.popup(cfg.welcome_popup_text, icon=cfg.icon, no_titlebar=True, background_color=cfg.ui_overall_background, grab_anywhere=True)
 
     # Define the window's layout
     layout = make_node_window_layout()
@@ -778,7 +755,7 @@ while True:
             print(withdraw_to_wallet)
             print(withdraw_amount)
             if withdraw_amount == None:
-                choice = sg.popup(f"Are you sure you want to send all your XMR to this address?\n", text_color=ui_sub_font, title='', custom_text=("    Yes, I am sure!    ", "    No, CANCEL!    "), no_titlebar=True, background_color=ui_title_bar, modal=True, grab_anywhere=True, icon=icon)
+                choice = sg.popup(f"Are you sure you want to send all your XMR to this address?\n", text_color=cfg.ui_sub_font, title='', custom_text=("    Yes, I am sure!    ", "    No, CANCEL!    "), no_titlebar=True, background_color=cfg.ui_title_bar, modal=True, grab_anywhere=True, icon=cfg.icon)
                 if "No, CANCEL!" in choice:
                     print("Cancelled wallet sweep!")
                     pass

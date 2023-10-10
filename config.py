@@ -60,6 +60,36 @@ rpc_is_ready = False
 stop_flag = threading.Event()  # Define a flag to indicate if the threads should stop
 
 # =====================
+# Theme Variables
+# =====================
+# Hex Colors
+ui_title_bar = '#222222'
+ui_overall_background = '#1D1D1D'
+ui_button_a = '#00A9AF'  # Updated to be a blue-green with grey
+ui_button_a_font = '#F0FFFF'
+ui_button_b = '#716F74'
+ui_button_b_font = '#FFF9FB'
+ui_main_font = '#F4F6EE'
+ui_sub_font = '#A7B2C7'
+ui_lines = '#696563'
+ui_outline = '#2E2E2E'
+ui_barely_visible = '#373737'
+ui_regular = '#FCFCFC'
+monero_grey = '#4c4c4c'
+monero_orange = '#00F6FF'  # Updated to be a blue-green
+monero_white = '#FFFFFF'
+monero_grayscale_top = '#7D7D7D'
+monero_grayscale_bottom = '#505050'
+main_text = ui_main_font  # this lets separators be orange but text stay white
+subscription_text_color = ui_sub_font
+subscription_background_color = ui_overall_background  # cfg.ui_title_bar
+
+# Other
+icon = 'icon.ico'
+font = 'Nunito Sans'
+title_bar_text = ''
+
+# =====================
 # Longform Text
 # =====================
 welcome_popup_text = '''
