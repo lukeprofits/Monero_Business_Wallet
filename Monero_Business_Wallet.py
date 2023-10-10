@@ -17,249 +17,19 @@ from datetime import datetime, timezone
 import platform
 import clipboard
 
-import Swap_Service_Integrations as swap
+import swap_functions as swap
+import wallet_functions as wallet
+import config as cfg
 
-received_transactions_file = 'received_transactions.csv'
-sent_transactions_file = 'sent_transactions.csv'
-swap_file = 'swap_info.csv'
-
-current_monero_price = 150.00  # temp until we have gotten the current price online.
-usd_amount_to_leave_in_wallet_for_tx_fees = 1
-
-# OVERALL FUNCTIONS ####################################################################################################
-def kill_everything():
-    global stop_flag
-
-    print('\n\n Please close this terminal window and relaunch the Monero Business Wallet')
-
-    stop_flag.set()  # Stop threads gracefully
-
-    # Kill the program
-    current_process = psutil.Process(os.getpid())  # Get the current process ID
-    current_process.terminate()  # Terminate the current process and its subprocesses
-
-
-
-
-# MAKE FUNCTIONS #######################################################################################################
-def make_payment_id():
-    payment_id = ''.join([random.choice('0123456789abcdef') for _ in range(16)])
-    return payment_id
-
-
-def make_integrated_address(payment_id, merchant_public_wallet_address):
-    global local_rpc_url
-
-    headers = {'Content-Type': 'application/json'}
-    data = {
-        "jsonrpc": "2.0",
-        "id": "0",
-        "method": "make_integrated_address",
-        "params": {
-            "standard_address": merchant_public_wallet_address,
-            "payment_id": payment_id
-        }
-    }
-
-    response = requests.post(f"{local_rpc_url}", headers=headers, data=json.dumps(data))
-    result = response.json()
-
-    if 'error' in result:
-        print('Error:', result['error']['message'])
-
-    else:
-        integrated_address = result['result']['integrated_address']
-        return integrated_address
-
-
-def create_wallet(wallet_name):  # Using CLI Wallet
-    global monero_wallet_cli_path, wallet_file_path
-
-    # Remove existing wallet if present
-    try:
-        os.remove(wallet_name)
-    except:
-        pass
-
-    try:
-        os.remove(f'{wallet_name}.keys')
-    except:
-        pass
-
-    command = f"{monero_wallet_cli_path} --generate-new-wallet {os.path.join(wallet_file_path, wallet_name)} --mnemonic-language English --command exit"
-    process = subprocess.Popen(command, shell=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-
-    # Sending two newline characters, pressing 'Enter' twice
-    process.stdin.write('\n')
-    process.stdin.write('\n')
-    process.stdin.flush()
-
-    # Getting the output and error messages
-    stdout, stderr = process.communicate()
-    #print(stdout)
-    #print(stderr)
-
-    worked_check = process.returncode
-    if worked_check == 0:
-        output_text = stdout
-        wallet_address = output_text.split('Generated new wallet: ')[1].split('View key: ')[0].strip()
-        view_key = output_text.split('View key: ')[1].split('*********************')[0].strip()
-        seed = output_text.split(' of your immediate control.')[1].split('********')[0].strip().replace('\n', '')
-        print(f'wallet_address: {wallet_address}')
-        print(f'view_key: {view_key}')
-        print(f'seed: {seed}')
-
-        with open(file=f'{wallet_name}_seed.txt', mode='a', encoding='utf-8') as f:
-            f.write(f'Wallet Address:\n{wallet_address}\nView Key:\n{view_key}\nSeed:\n{seed}\n\nThe above wallet should not be your main source of funds. This is ONLY to be a side account for recording and auto-forwarding payments. If anyone gets access to this seed, they can steal all your funds. Please use responsibly.\n\n\n\n')
-
-        return seed, wallet_address, view_key
-    else:
-        print(stderr)
-
-
-def generate_monero_qr(wallet_address):
-    if check_if_monero_wallet_address_is_valid_format(wallet_address):
-        # Generate the QR code
-        qr = qrcode.QRCode(version=1, box_size=3, border=4)
-        qr.add_data("monero:" + wallet_address)
-        qr.make(fit=True)
-        qr_img = qr.make_image(fill_color=monero_orange, back_color=ui_overall_background)
-        # Save the image to a file
-        filename = "wallet_qr_code.png"
-        with open(filename, "wb") as f:
-            qr_img.save(f, format="PNG")
-        return filename
-
-    else:
-        print('Monero Address is not valid')
-        return None
-
-
-# CHECK FUNCTIONS ######################################################################################################
-def check_if_wallet_exists():
-    global wallet_name
-
-    if not os.path.isfile(f"{wallet_name}.keys") or not os.path.isfile(wallet_name):
-        # If either file doesn't exist
-        start_block_height = get_current_block_height()
-        create_wallet(wallet_name=wallet_name)
-        return start_block_height
-
-    else:
-        # If both files exist, do nothing
-        print('Wallet exists already.')
-        return None
-
-
-def check_if_amount_is_proper_format(amount):
-    if type(amount) == int:
-        return True
-
-    elif type(amount) == float:
-        if round(amount, 12) == amount:
-            return True
-        else:
-            return False
-
-    else:
-        return False
-
-
-def check_if_monero_wallet_address_is_valid_format(wallet_address):
-    # Check if the wallet address starts with the number 4
-    if wallet_address[0] != "4":
-        return False
-
-    # Check if the wallet address is exactly 95 or 106 characters long
-    if len(wallet_address) not in [95, 106]:
-        return False
-
-    # Check if the wallet address contains only valid characters
-    valid_chars = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
-    for char in wallet_address:
-        if char not in valid_chars:
-            return False
-
-    # If it passed all these checks
-    return True
-
-
-def check_if_node_works(node):
-    url = f'http://{node}/json_rpc'
-    headers = {'Content-Type': 'application/json'}
-    payload = {
-        'jsonrpc': '2.0',
-        'id': '0',
-        'method': 'get_info',
-        'params': {}
-    }
-
-    try:
-        response = requests.post(url, data=json.dumps(payload), headers=headers)
-        response.raise_for_status()
-        result = response.json()
-
-        if 'result' in result and 'status' in result['result'] and result['result']['status'] == 'OK':
-            return True
-        else:
-            return False
-
-    except requests.exceptions.RequestException as e:
-        print(e)
-        return False
-
-
-def check_if_payment_id_is_valid(payment_id):
-    if len(payment_id) != 16:
-        return False
-
-    valid_chars = set('0123456789abcdef')
-    for char in payment_id:
-        if char not in valid_chars:
-            return False
-
-    # If it passed all these checks
-    return True
-
-
-# RPC FUNCTIONS ########################################################################################################
-def kill_monero_wallet_rpc():
-    
-    global rpc_is_ready
-    # Check which platform we are on and get the process list accordingly
-    if platform.system() == 'Windows':
-        process = subprocess.Popen("tasklist", stdout=subprocess.PIPE)
-        rpc_path = 'monero-wallet-rpc.exe'
-    else:
-        process = subprocess.Popen("ps", stdout=subprocess.PIPE)
-        rpc_path = 'monero-wallet-r'
-    out, err = process.communicate()
-
-    for line in out.splitlines():
-        if rpc_path.encode() in line:
-            if platform.system() == 'Windows': # Check if we are on Windows and get the PID accordingly
-                pid = int(line.split()[1].decode("utf-8"))
-            else:
-                pid = int(line.split()[0].decode("utf-8"))
-            os.kill(pid, 9)
-            print(f"Successfully killed monero-wallet-rpc with PID {pid}")
-            rpc_is_ready = False
-            break
-
-        else:
-            print("monero-wallet-rpc process not found")
-
-
+# OPEN STUFF FUNCTIONS #################################################################################################
 def start_local_rpc_server_thread():
-    global wallet_name, host, port, rpc_is_ready, start_block_height, rpc_bind_port
-    
     if platform.system() == 'Windows':
-        cmd = f'monero-wallet-rpc --wallet-file {wallet_name} --password "" --rpc-bind-port {rpc_bind_port} --disable-rpc-login --confirm-external-bind --daemon-host {host} --daemon-port {port}'
+        cmd = f'monero-wallet-rpc --wallet-file {cfg.wallet_name} --password "" --rpc-bind-port {cfg.rpc_bind_port} --disable-rpc-login --confirm-external-bind --daemon-host {host} --daemon-port {port}'
     else:
-        cmd = f'{os.getcwd()}/monero-wallet-rpc --wallet-file {wallet_name} --password "" --rpc-bind-port {rpc_bind_port} --disable-rpc-login --confirm-external-bind --daemon-host {host} --daemon-port {port}'
-    
+        cmd = f'{os.getcwd()}/monero-wallet-rpc --wallet-file {cfg.wallet_name} --password "" --rpc-bind-port {cfg.rpc_bind_port} --disable-rpc-login --confirm-external-bind --daemon-host {host} --daemon-port {port}'
+
     if start_block_height:
-        command = f'{monero_wallet_cli_path} --wallet-file {os.path.join(wallet_file_path, wallet_name)} --password "" --restore-height {start_block_height} --command exit'
+        command = f'{cfg.monero_wallet_cli_path} --wallet-file {os.path.join(cfg.wallet_file_path, cfg.wallet_name)} --password "" --restore-height {start_block_height} --command exit'
         proc = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
         blocks_synced = False
@@ -283,216 +53,145 @@ def start_local_rpc_server_thread():
         print(f'RPC STARTING:{output}')
 
         if "Starting wallet RPC server" in output:
-            rpc_is_ready = True
+            cfg.rpc_is_ready = True
             break
 
         if process.poll() is not None:
             break
 
 
-def start_local_rpc_server():
-    kill_monero_wallet_rpc()
-    rpc_server_thread = threading.Thread(target=start_local_rpc_server_thread)
-    rpc_server_thread.start()
+# CLOSE STUFF FUNCTIONS ################################################################################################
+def kill_everything():
+    print('\n\n Please close this terminal window and relaunch the Monero Business Wallet')
+
+    cfg.stop_flag.set()  # Stop threads gracefully
+
+    # Kill the program
+    current_process = psutil.Process(os.getpid())  # Get the current process ID
+    current_process.terminate()  # Terminate the current process and its subprocesses
 
 
-def get_current_block_height():
-    global daemon_rpc_url
+def kill_monero_wallet_rpc():
+    # Check which platform we are on and get the process list accordingly
+    if platform.system() == 'Windows':
+        process = subprocess.Popen("tasklist", stdout=subprocess.PIPE)
+        rpc_path = 'monero-wallet-rpc.exe'
+    else:
+        process = subprocess.Popen("ps", stdout=subprocess.PIPE)
+        rpc_path = 'monero-wallet-r'
+    out, err = process.communicate()
 
-    # Set up the JSON-RPC request
-    headers = {'content-type': 'application/json'}
-    data = {
-        "jsonrpc": "2.0",
-        "id": "0",
-        "method": "get_info"
-    }
+    for line in out.splitlines():
+        if rpc_path.encode() in line:
+            if platform.system() == 'Windows':  # Check if we are on Windows and get the PID accordingly
+                pid = int(line.split()[1].decode("utf-8"))
+            else:
+                pid = int(line.split()[0].decode("utf-8"))
+            os.kill(pid, 9)
+            print(f"Successfully killed monero-wallet-rpc with PID {pid}")
+            cfg.rpc_is_ready = False
+            break
 
-    # Send the JSON-RPC request to the daemon
-    response = requests.post(daemon_rpc_url, data=json.dumps(data), headers=headers)
+        else:
+            print("monero-wallet-rpc process not found")
 
-    # Parse the response to get the block height
-    if response.status_code == 200:
-        response_data = response.json()
-        block_height = response_data["result"]["height"]
-        print(f'Block Height: {block_height}')
-        return block_height
+
+# OTHER RANDOM FUNCTIONS ###############################################################################################
+def convert_or_forward():
+    # I'm super freaking tired. I think this works but review it later and delete this comment assuming it does.
+    if cfg.convert:
+        swap_info = swap.with_sideshift(shift_to_coin=cfg.convert_coin, to_wallet=cfg.convert_wallet, on_network=cfg.convert_network, amount_to_convert=xmr_wallet_balance_to_forward)
+        if swap_info:
+            print(swap_info)
+            write_swap_to_csv(swap_info=swap_info)  # Maybe also add a thing to include the IP we used.
+            # Optionally add a "check for success" but not sure if there is really a point.
+
+        else:
+            print('There was a problem, so we did not swap anything.')
+
+    elif cfg.forward:
+        # Transfer what we have
+        wallet.send_monero(destination_address=cfg.cold_wallet, amount=xmr_wallet_balance_to_forward)
+        pass
+
+def get_random_monero_node():
+    response = requests.get('https://monero.fail/')
+    tree = html.fromstring(response.content)
+    urls = tree.xpath('//span[@class="nodeURL"]/text()')
+    random.shuffle(urls)  # mix them up so we get a random one instead of top to bottom.
+
+    for url in urls:
+        if '://' in url:
+            url = url.split('://')[1]
+
+        if ':' in url:  # make sure that it has the port
+            print(url)
+            if wallet.check_if_node_works(url):
+                print(f'WORKS: {url}')
+                return url
+
+
+def make_payment_id():  # ADD TO MoneroSub pip package at some point
+    payment_id = ''.join([random.choice('0123456789abcdef') for _ in range(16)])
+    return payment_id
+
+
+def generate_monero_qr(wallet_address):
+    if wallet.check_if_monero_wallet_address_is_valid_format(wallet_address):
+        # Generate the QR code
+        qr = qrcode.QRCode(version=1, box_size=3, border=4)
+        qr.add_data("monero:" + wallet_address)
+        qr.make(fit=True)
+        qr_img = qr.make_image(fill_color=monero_orange, back_color=ui_overall_background)
+        # Save the image to a file
+        filename = "wallet_qr_code.png"
+        with open(filename, "wb") as f:
+            qr_img.save(f, format="PNG")
+        return filename
 
     else:
+        print('Monero Address is not valid')
         return None
 
 
-def get_wallet_balance():
-    global local_rpc_url, rpc_username, rpc_password
+def check_if_amount_is_proper_format(amount):
+    if type(amount) == int:
+        return True
 
-    headers = {"content-type": "application/json"}
-    payload = {
-        "jsonrpc": "2.0",
-        "id": "0",
-        "method": "get_balance"
-    }
-
-    try:
-        # get balance
-        response = requests.post(local_rpc_url, headers=headers, data=json.dumps(payload), auth=(rpc_username, rpc_password))
-        response.raise_for_status()
-        result = response.json().get("result")
-
-        if result is None:
-            raise ValueError("Failed to get wallet balance")
-
-        xmr_balance = monero_usd_price.calculate_monero_from_atomic_units(atomic_units=result["balance"])
-        xmr_unlocked_balance = monero_usd_price.calculate_monero_from_atomic_units(atomic_units=result["unlocked_balance"])
-
-        #print(xmr_unlocked_balance)
-
-        try:
-            usd_balance = format(monero_usd_price.calculate_usd_from_monero(monero_amount=float(xmr_balance), print_price_to_console=False, monero_price=current_monero_price), ".2f")
-        except:
-            usd_balance = '---.--'
-
-        #print(usd_balance)
-
-        return xmr_balance, usd_balance, xmr_unlocked_balance
-
-    except Exception as e:
-        print(f'get_wallet_balance error: {e}')
-        return '--.------------', '---.--'
-
-
-def get_wallet_balance_in_xmr_minus_amount(amount_in_usd=1):
-    # This returns the monero amount in the wallet minus an amount. Default $1. (or 0 if there is less than $1 in the wallet)
-    # Some extra balance is needed for transaction fees. Generally less than $0.01, but leaving $1 to future-proof.
-    wallet_balance_xmr, wallet_balance_usd, xmr_unlocked_balance = get_wallet_balance()
-
-    monero_amount_worth_amount_in_usd = monero_usd_price.calculate_monero_from_usd(usd_amount=amount_in_usd, print_price_to_console=False, monero_price=current_monero_price)
-    #print(wallet_balance_xmr)
-    #print(monero_amount_worth_one_usd)
-
-    wallet_balance_minus_one_usd = wallet_balance_xmr - monero_amount_worth_amount_in_usd
-    #print(wallet_balance_minus_one_usd)
-    if wallet_balance_minus_one_usd > 0:
-        return wallet_balance_minus_one_usd
-    else:
-        return 0
-
-
-def get_wallet_address():
-    global local_rpc_url, rpc_username, rpc_password
-
-    headers = {"content-type": "application/json"}
-    payload = {
-        "jsonrpc": "2.0",
-        "id": "0",
-        "method": "get_address"
-    }
-
-    response = requests.post(local_rpc_url, headers=headers, data=json.dumps(payload), auth=(rpc_username, rpc_password))
-    response.raise_for_status()
-    result = response.json().get("result")
-
-    if result is None:
-        raise ValueError("Failed to get wallet address")
-
-    address = result["address"]
-    print(address)
-    return address
-
-
-def send_monero(destination_address, amount, payment_id=None):
-    global local_rpc_url, rpc_username, rpc_password
-
-    # this needs to measure in atomic units, not xmr, so this converts it.
-    amount = monero_usd_price.calculate_atomic_units_from_monero(monero_amount=amount)
-
-    if check_if_monero_wallet_address_is_valid_format(wallet_address=destination_address):
-        print('Address is valid. Trying to send Monero')
-
-        # Changes the wallet address to use an integrated wallet address ONLY if a payment id was specified.
-        if payment_id:
-            # generate the integrated address to pay (an address with the payment ID baked into it)
-            destination_address = make_integrated_address(payment_id=payment_id, merchant_public_wallet_address=destination_address)
-
-        headers = {"content-type": "application/json"}
-        payload = {
-            "jsonrpc": "2.0",
-            "id": "0",
-            "method": "transfer",
-            "params": {
-                "destinations": [{"amount": amount, "address": destination_address}],
-                "priority": 1,
-                #"ring_size": 11,
-                "get_tx_key": True
-            }
-        }
-
-        response = requests.post(local_rpc_url, headers=headers, data=json.dumps(payload), auth=(rpc_username, rpc_password))
-        response.raise_for_status()
-        result = response.json().get("result")
-
-        print('Sent Monero')
-
-        if result is None:
-            print('Failed to send Monero transaction')
+    elif type(amount) == float:
+        if round(amount, 12) == amount:
+            return True
+        else:
+            return False
 
     else:
-        print('Wallet is not a valid monero wallet address.')
+        return False
 
 
-def get_all_transactions():
-    global local_rpc_url, rpc_username, rpc_password
+# WRITE FILE FUNCTIONS #################################################################################################
+def write_swap_to_csv(swap_info, filename=cfg.swap_file):
+    # Check if file exists
+    file_exists = os.path.isfile(filename)
 
-    headers = {"content-type": "application/json"}
-    payload = {
-        "jsonrpc": "2.0",
-        "id": "0",
-        "method": "get_transfers",
-        "params": {
-            "in": True,
-            "out": True,
-            "pending": True,
-            "failed": True,
-        }
-    }
+    # If file doesn't exist, write headers first
+    if not file_exists:
+        with open(filename, 'w', newline='', encoding='utf-8') as file:
+            writer = csv.writer(file)
+            # Add 'timestamp' to the beginning of the headers
+            headers = ['timestamp'] + list(swap_info.keys())
+            writer.writerow(headers)
 
-    response = requests.post(local_rpc_url, headers=headers, data=json.dumps(payload), auth=(rpc_username, rpc_password))
-    response_data = response.json()
-
-    #print('WE GOT:')
-    #print(response_data)
-
-    if "error" in response_data:
-        raise ValueError(f"RPC Error {response_data['error']['code']}: {response_data['error']['message']}")
-
-    result_data = response_data.get("result", {})
-    all_transfers = []
-
-    # Iterate over each direction and aggregate the transactions
-    for direction in ["in", "out", "pending", "failed"]:
-        transactions = result_data.get(direction, [])
-        all_transfers.extend(transactions)
-
-    return all_transfers
+    # Write (or append) the data
+    with open(filename, 'a', newline='', encoding='utf-8') as file:
+        writer = csv.writer(file)
+        # Get current timestamp in RFC3339 format
+        current_timestamp = datetime.now(timezone.utc).isoformat()
+        # Add timestamp to the beginning of the data
+        data = [current_timestamp] + list(swap_info.values())
+        writer.writerow(data)
 
 
-def filter_transactions(transfers, direction):
-    """
-    Filter transactions based on the specified direction.
-
-    Parameters:
-    - transfers (list of dict): List of transactions.
-    - direction (str): The direction to filter by. Options are "in", "out", "pending", "failed"
-
-    Returns:
-    - list of dict: Filtered transactions.
-    """
-
-    # Use a list comprehension to filter the transactions based on direction
-    filtered_transfers = [transaction for transaction in transfers if transaction.get("type") == direction]
-
-    return filtered_transfers
-
-
-def write_transactions_to_csv(transactions, filename=received_transactions_file):
+def write_transactions_to_csv(transactions, filename=cfg.received_transactions_file):
     # List to store existing transactions
     existing_txids = []
 
@@ -543,10 +242,8 @@ def write_transactions_to_csv(transactions, filename=received_transactions_file)
                 tx[new_name] = tx.pop(old_name)
 
         # Do Currency Conversions
-        # NOTE: IT IS REALLY STUPID TO LOOK UP THE PRICE OF MONERO FOR EVERY TRANSACTION. FIX THIS SO WE AREN't SPAMMING REQUESTS.
-
         tx[xmr_amount_name] = monero_usd_price.calculate_monero_from_atomic_units(atomic_units=tx[atomic_units_amount_name])
-        tx[usd_amount_name] = monero_usd_price.calculate_usd_from_atomic_units(atomic_units=tx[atomic_units_amount_name], print_price_to_console=False, monero_price=current_monero_price,)
+        tx[usd_amount_name] = monero_usd_price.calculate_usd_from_atomic_units(atomic_units=tx[atomic_units_amount_name], print_price_to_console=False, monero_price=cfg.current_monero_price,)
 
         # Convert from a POSIX timestamp to a human-readable format
         tx[timestamp_name] = datetime.fromtimestamp(tx[timestamp_name]).strftime('%Y-%m-%d %H:%M:%S')
@@ -570,68 +267,23 @@ def write_transactions_to_csv(transactions, filename=received_transactions_file)
     print(f'Wrote to {filename}')
 
 
-def write_swap_to_csv(swap_info, filename=swap_file):
-    # Check if file exists
-    file_exists = os.path.isfile(filename)
-
-    # If file doesn't exist, write headers first
-    if not file_exists:
-        with open(filename, 'w', newline='', encoding='utf-8') as file:
-            writer = csv.writer(file)
-            # Add 'timestamp' to the beginning of the headers
-            headers = ['timestamp'] + list(swap_info.keys())
-            writer.writerow(headers)
-
-    # Write (or append) the data
-    with open(filename, 'a', newline='', encoding='utf-8') as file:
-        writer = csv.writer(file)
-        # Get current timestamp in RFC3339 format
-        current_timestamp = datetime.now(timezone.utc).isoformat()
-        # Add timestamp to the beginning of the data
-        data = [current_timestamp] + list(swap_info.values())
-        writer.writerow(data)
-
-
-# GUI FUNCTIONS ########################################################################################################
-def update_gui_balance():
-    global wallet_balance_xmr, wallet_balance_usd, wallet_address
-
-    while not stop_flag.is_set():
-        try:
-            # Get the wallet balance info
-            wallet_balance_xmr, wallet_balance_usd, xmr_unlocked_balance = get_wallet_balance()
-
-            # Update the GUI with the new balance info
-            if not wallet_balance_usd == '---.--':
-                window['wallet_balance_in_usd'].update(f'        Balance:  ${wallet_balance_usd} USD')
-
-            window['wallet_balance_in_xmr'].update(f'        XMR: {wallet_balance_xmr:.12f}')
-
-            # Wait before updating again
-            time.sleep(5)
-
-        except Exception as e:
-            print(f'Exception in thread "update_gui_balance: {e}"')
-
-
+# LOOPING THREADS ######################################################################################################
 def check_for_new_transactions():
-    global current_monero_price
-
-    while not stop_flag.is_set():
+    while not cfg.stop_flag.is_set():
         try:
-            current_monero_price = monero_usd_price.median_price(print_price_to_console=False)
-            print(f'Got current Monero price: {current_monero_price}')
+            cfg.current_monero_price = monero_usd_price.median_price(print_price_to_console=False)
+            print(f'Got current Monero price: {str(cfg.current_monero_price)}')
 
             # Get All Transactions
-            transactions = get_all_transactions()
+            transactions = wallet.get_all_transactions()
 
             # Filter to incoming/outgoing
-            incoming_filtered_tx = filter_transactions(transfers=transactions, direction='in')
-            outgoing_filtered_tx = filter_transactions(transfers=transactions, direction='out')
+            incoming_filtered_tx = wallet.filter_transactions(transfers=transactions, direction='in')
+            outgoing_filtered_tx = wallet.filter_transactions(transfers=transactions, direction='out')
 
             # Write new ones to csv
-            write_transactions_to_csv(transactions=incoming_filtered_tx, filename=received_transactions_file)
-            write_transactions_to_csv(transactions=outgoing_filtered_tx, filename=sent_transactions_file)
+            write_transactions_to_csv(transactions=incoming_filtered_tx, filename=cfg.received_transactions_file)
+            write_transactions_to_csv(transactions=outgoing_filtered_tx, filename=cfg.sent_transactions_file)
             print('Wrote new transactions to csv files.')
 
             # Wait 2 minutes (Monero has a 2-minute block time).
@@ -642,39 +294,27 @@ def check_for_new_transactions():
 
 
 def autoforward_monero():
-    global current_monero_price
-
-    while not stop_flag.is_set():
+    while not cfg.stop_flag.is_set():
         try:
             # See if our balance is over usd_amount_to_leave_in_wallet_for_tx_fees
-            xmr_wallet_balance_to_forward = get_wallet_balance_in_xmr_minus_amount(amount_in_usd=usd_amount_to_leave_in_wallet_for_tx_fees)
-            if xmr_wallet_balance_to_forward > 0:
-                # Check if the "wait until over $100" box is checked
-                if False: ######################################################################################################################################################## ADD THE BOX-CHECKING LOGIC ########
-                    # Make sure we have over $100
-                    if get_wallet_balance_in_xmr_minus_amount(amount_in_usd=(100 + usd_amount_to_leave_in_wallet_for_tx_fees)):  # Evaluates to False if we don't have enough
-                        # Are we converting, or forwarding?
-                        ################################################## ADD THE REST OF THE LOGIC HERE ##################################################################################
-                    else:
-                        pass
+            xmr_wallet_balance_to_forward = wallet.get_wallet_balance_in_xmr_minus_amount(amount_in_usd=cfg.usd_amount_to_leave_in_wallet_for_tx_fees)
 
-                # "wait until over $100" box is NOT checked
+            if xmr_wallet_balance_to_forward > 0:
+                # DO "wait until over $100"
+                print(f'THIS IS WHAT WAIT FOR BALANCE IS: {str(window["wait_for_balance"].get())}')
+                if window['wait_for_balance'].get():
+                    # Make sure we have over $100
+                    if wallet.get_wallet_balance_in_xmr_minus_amount(amount_in_usd=(100 + cfg.usd_amount_to_leave_in_wallet_for_tx_fees)):  # Evaluates to False if we don't have enough
+                        # Are we converting, or forwarding?
+                        convert_or_forward()
+
+                    else:
+                        print('Balance not yet above forwarding limit.')
+
+                # DO NOT "wait until over $100"
                 else:
                     # Are we converting, or forwarding?
-                    if convert:
-                        swap_info = swap.with_sideshift(shift_to_coin=convert_coin, to_wallet=convert_wallet, on_network=convert_network, amount_to_convert=xmr_wallet_balance_to_forward)
-                        if swap_info:
-                            print(swap_info)
-                            write_swap_to_csv(swap_info=swap_info)  # Maybe also add a thing to include the IP we used.
-                            # Optionally add a "check for success" but not sure if there is really a point.
-
-                        else:
-                            print('There was a problem, so we did not swap anything.')
-
-                    elif forward:
-                        # Transfer what we have
-                        send_monero(destination_address=cold_wallet, amount=xmr_wallet_balance_to_forward)
-                        pass
+                    convert_or_forward()
 
             # Not enough to bother transferring
             else:
@@ -687,6 +327,13 @@ def autoforward_monero():
             print(f'Exception in thread "check_for_new_transactions: {e}"')
 
 
+# GUI FUNCTIONS (NOT LAYOUT) ########################################################################################################
+def refresh_gui():
+    global window
+    window.close()
+    window = create_main_window()  # recreate the window to refresh the GUI
+
+
 def make_transparent():
     # Make the main window transparent
     window.TKroot.attributes('-alpha', 0.00)
@@ -697,42 +344,45 @@ def make_visible():
     window.TKroot.attributes('-alpha', 1.00)
 
 
-def get_random_monero_node():
-    response = requests.get('https://monero.fail/')
-    tree = html.fromstring(response.content)
-    urls = tree.xpath('//span[@class="nodeURL"]/text()')
-    random.shuffle(urls)  # mix them up so we get a random one instead of top to bottom.
+def update_gui_balance():
+    while not cfg.stop_flag.is_set():
+        try:
+            # Get the wallet balance info
+            cfg.wallet_balance_xmr, cfg.wallet_balance_usd, cfg.xmr_unlocked_balance = wallet.get_wallet_balance()
+            #print(cfg.wallet_balance_usd)
+            # Update the GUI with the new balance info
+            if not cfg.wallet_balance_usd == '---.--':
+                window['wallet_balance_in_usd'].update(f'        Balance:  ${cfg.wallet_balance_usd} USD')
 
-    for url in urls:
-        if '://' in url:
-            url = url.split('://')[1]
+            window['wallet_balance_in_xmr'].update(f'        XMR: {cfg.wallet_balance_xmr:.12f}')
 
-        if ':' in url:  # make sure that it has the port
-            print(url)
-            if check_if_node_works(url):
-                print(f'WORKS: {url}')
-                return url
+            # Wait before updating again
+            time.sleep(5)
 
-
-def refresh_gui():
-    global window
-    window.close()
-    window = create_window()  # recreate the window to refresh the GUI
+        except Exception as e:
+            print(f'Exception in thread "update_gui_balance: {e}"')
 
 
+# GUI LAYOUT FUNCTIONS #################################################################################################
 def make_layout_part_for_forwarding_to():
-    if convert:  # Conversion Wallet
-        return [sg.Text(f'      Forwarding To:', size=(15, 1), font=(font, 14), pad=(10, 0), text_color=ui_sub_font, background_color=ui_overall_background), sg.Text(f'{convert_wallet}', size=(48, 1), font=(font, 14), pad=(10, 0), text_color=monero_orange, background_color=ui_overall_background)]
-    elif forward:  # Cold Storage
-        return [sg.Text(f'      Forwarding To:', size=(15, 1), font=(font, 14), pad=(10, 0), text_color=ui_sub_font, background_color=ui_overall_background), sg.Text(f'{cold_wallet}', size=(90, 1), font=(font, 10), pad=(10, 0), text_color=monero_orange, background_color=ui_overall_background)]
+    if cfg.convert:  # Conversion Wallet
+        return [sg.Text(f'      Forwarding To:', size=(15, 1), font=(font, 14), pad=(10, 0), text_color=ui_sub_font, background_color=ui_overall_background), sg.Text(f'{cfg.convert_wallet}', size=(48, 1), font=(font, 14), pad=(10, 0), text_color=monero_orange, background_color=ui_overall_background)]
+    elif cfg.forward:  # Cold Storage
+        return [sg.Text(f'      Forwarding To:', size=(15, 1), font=(font, 14), pad=(10, 0), text_color=ui_sub_font, background_color=ui_overall_background), sg.Text(f'{cfg.cold_wallet}', size=(90, 1), font=(font, 10), pad=(10, 0), text_color=monero_orange, background_color=ui_overall_background)]
 
 
 def make_layout_part_for_forwarding_to_2():
-    if convert:  # Conversion Wallet
-        return [sg.Text(f'                        ({convert_coin} on {convert_network} network)', size=(48, 1), font=(font, 14), text_color=monero_orange, background_color=ui_overall_background, justification='c')]
+    if cfg.convert:  # Conversion Wallet
+        return [sg.Text(f'                        ({cfg.convert_coin} on {cfg.convert_network} network)', size=(48, 1), font=(font, 14), text_color=monero_orange, background_color=ui_overall_background, justification='c')]
     else:
         return []
 
+def make_please_wait_popup():
+    layout = [
+        [sg.Text("Please Wait: Monero RPC Server Is Starting", key="wait_text", font=(font, 18), background_color=ui_overall_background)],
+        [sg.Text("                                   This may take a few minutes on first launch.", key="wait_text2", font=(font, 10), background_color=ui_overall_background)]
+    ]
+    return layout
 
 def make_node_window_layout():
     layout = [[sg.Column([
@@ -787,12 +437,12 @@ def prompt_for_forward_to_cold_storage():
             cold_storage_wallet_address = values["cold_storage_wallet"]
             print(cold_storage_wallet_address)
 
-            if check_if_monero_wallet_address_is_valid_format(cold_storage_wallet_address):
+            if wallet.check_if_monero_wallet_address_is_valid_format(cold_storage_wallet_address):
                 # write to file
-                with open(cold_wallet_filename, 'w') as f:
+                with open(cfg.cold_wallet_filename, 'w') as f:
                     f.write(cold_storage_wallet_address + '\n')
-                global cold_wallet
-                cold_wallet = cold_storage_wallet_address
+
+                cfg.cold_wallet = cold_storage_wallet_address
             break
 
         if event == sg.WIN_CLOSED:
@@ -841,10 +491,8 @@ def prompt_for_convert_to_usd():
             print(swap_info)
 
             # write to file
-            with open(convert_wallet_filename, 'w') as f:
+            with open(cfg.convert_wallet_filename, 'w') as f:
                 f.write(swap_info + '\n')
-            global convert_coin, convert_network, convert_wallet
-            convert_coin, convert_network, convert_wallet = swap_coin, swap_network, swap_wallet_address
             break
 
         if event == sg.WIN_CLOSED:
@@ -879,217 +527,7 @@ def prompt_for_convert_forward_selection():
     window.close()
 
 
-
-# THEME VARIABLES ######################################################################################################
-
-# Hex Colors
-ui_title_bar = '#222222'
-ui_overall_background = '#1D1D1D'
-ui_button_a = '#00A9AF'  # Updated to be a blue-green with grey
-ui_button_a_font = '#F0FFFF'
-ui_button_b = '#716F74'
-ui_button_b_font = '#FFF9FB'
-ui_main_font = '#F4F6EE'
-ui_sub_font = '#A7B2C7'
-ui_lines = '#696563'
-ui_outline = '#2E2E2E'
-ui_barely_visible = '#373737'
-ui_regular = '#FCFCFC'
-monero_grey = '#4c4c4c'
-monero_orange = '#00F6FF'  # Updated to be a blue-green
-monero_white = '#FFFFFF'
-monero_grayscale_top = '#7D7D7D'
-monero_grayscale_bottom = '#505050'
-
-# Set Theme
-icon = 'icon.ico'
-font = 'Nunito Sans'
-title_bar_text = ''
-sg.theme('DarkGrey2')
-# Modify the colors you want to change
-sg.theme_background_color(ui_overall_background)  # MAIN BACKGROUND COLOR
-sg.theme_button_color((ui_button_a_font, ui_button_a))  # whiteish, blackish
-sg.theme_text_color(monero_orange)  # HEADING TEXT AND DIVIDERS
-main_text = ui_main_font  # this lets separators be orange but text stay white
-subscription_text_color = ui_sub_font
-subscription_background_color = ui_overall_background  # ui_title_bar
-sg.theme_text_element_background_color(ui_title_bar)  # Text Heading Boxes
-sg.theme_element_background_color(ui_title_bar)  # subscriptions & transactions box color
-sg.theme_element_text_color(ui_sub_font)  # My Subscriptions Text Color
-sg.theme_input_background_color(ui_title_bar)
-sg.theme_input_text_color(monero_orange)
-sg.theme_border_width(0)
-sg.theme_slider_border_width(0)
-
-# VARIABLES ############################################################################################################
-if platform.system() == 'Windows':
-    monero_wallet_cli_path = "" + 'monero-wallet-cli.exe'  # Update path to the location of the monero-wallet-cli executable if your on WINDOWS
-else:
-    monero_wallet_cli_path = os.getcwd() + '/' + 'monero-wallet-cli'  # Update path to the location of the monero-wallet-cli executable if your on other platforms
-wallet_name = "business_wallet"
-if platform.system() == 'Windows':
-    wallet_file_path = ""
-else:
-    wallet_file_path = f'{os.getcwd()}/'  # Update this path to the location where you want to save the wallet file
-
-monero_transactions_file = 'monero_transactions.csv'
-rpc_bind_port = '18088'
-local_rpc_url = f"http://127.0.0.1:{rpc_bind_port}/json_rpc"
-rpc_username = "monero"
-rpc_password = "monero"
-
-stop_flag = threading.Event()  # Define a flag to indicate if the threads should stop
-
-welcome_popup_text = '''
-           Welcome to the Monero Business Wallet!
-
-We're thrilled that you've chosen to use our Free and Open Source Software (FOSS). Before you get started, there are a few important things you should know:
-
-1. Monero Business Wallet is currently in alpha. Your feedback is valuable to us in making this software better. Please let us know if you encounter any issues or, if you are a developer, help resolve them! All the code is on GitHub.
-
-2. Monero Business Wallet is an internet-connected hot wallet, its security is only as robust as your computer's is.
-
-3. By using this software, you understand and agree that you're doing so at your own risk. The developers cannot be held responsible for any lost funds.
-
-Enjoy using the Monero Business Wallet, thank you for your support, and if you are a Python developer, please consider helping us improve the project!
-
-https://github.com/lukeprofits/Monero_Business_Wallet
-'''
-
-# ADD DAEMON/NODE ######################################################################################################
-node_filename = "node_to_use.txt"
-
-if os.path.exists(node_filename):
-    with open(node_filename, 'r') as f:
-        node = f.readline().strip()  # read first line into 'node'
-else:
-    # welcome popup
-    sg.popup(welcome_popup_text, icon=icon, no_titlebar=True, background_color=ui_overall_background, grab_anywhere=True)
-
-    # Define the window's layout
-    layout = make_node_window_layout()
-
-    # Create the window
-    window = sg.Window('Node Input', layout, keep_on_top=True, no_titlebar=True, grab_anywhere=True)
-
-    # Event loop
-    while True:
-        event, values = window.read()
-        if event == 'add_node':
-            node = values['custom_node']
-
-            if '://' in node:
-                node = node.split('://')[1]
-
-            print(node)
-
-            if check_if_node_works(node):
-                window['custom_node'].update(value="Success!")
-
-                # Save the node to the file
-                with open(node_filename, 'w') as f:
-                    f.write(node + '\n')
-                break
-
-            else:
-                window['custom_node'].update(value="Node did not respond. Try Another.")
-
-        elif event == 'add_random_node':
-            print('Adding a random node. Please wait. \nThe software will seem to be frozen until a node is found.')
-            node = get_random_monero_node()
-            # Save the node to the file
-            with open(node_filename, 'w') as f:
-                f.write(node + '\n')
-            break
-
-        if event == sg.WIN_CLOSED:
-            break
-
-    window.close()
-
-host = node.split(':')[0]
-port = node.split(':')[1]
-
-daemon_rpc_url = f"http://{host}:{port}/json_rpc"
-# END NODE SECTION
-
-
-# CONVERT OR FORWARD SECTION
-# Note: cold_storage takes priority over convert. If both are specified, it should forward to cold storage only.
-cold_wallet_filename = 'cold_wallet.txt'
-convert_wallet_filename = 'conversion_wallet.txt'
-cold_wallet = ''
-convert_wallet = ''
-convert_coin = ''
-convert_network = ''
-
-
-convert = False
-forward = False
-
-if os.path.exists(cold_wallet_filename):
-    with open(cold_wallet_filename, 'r') as f:
-        cold_wallet = f.readline().strip()
-        if check_if_monero_wallet_address_is_valid_format(cold_wallet):
-            forward = True
-
-elif os.path.exists(convert_wallet_filename):
-    with open(convert_wallet_filename, 'r') as f:
-        data = f.read().strip()
-        data = json.loads(data)
-        convert_wallet = data['wallet']
-        convert_coin = data['coin']
-        convert_network = data['network']
-        if convert_wallet and convert_coin and convert_network:
-            convert = True
-            print(convert_wallet, convert_coin, convert_network)
-
-if not forward and not convert:
-    prompt_for_convert_forward_selection()
-
-# Make sure we are ONLY forwarding and NOT converting if both are configured.
-if forward and convert:
-    convert = False
-# END CONVERT OR FORWARD SECTION
-
-
-# ADD A WALLET #########################################################################################################
-
-
-# START PREREQUISITES ##################################################################################################
-start_block_height = check_if_wallet_exists()  # auto-create one if it doesn't exist
-
-rpc_is_ready = False
-start_local_rpc_server()
-
-# Set up the PySimpleGUI "please wait" popup window
-layout = [
-    [sg.Text("Please Wait: Monero RPC Server Is Starting", key="wait_text", font=(font, 18), background_color=ui_overall_background)],
-    [sg.Text("                                   This may take a few minutes on first launch.", key="wait_text2", font=(font, 10), background_color=ui_overall_background)]
-          ]
-
-window = sg.Window("Waiting", layout, finalize=True, keep_on_top=True, no_titlebar=True, grab_anywhere=True)
-
-while not rpc_is_ready:
-    # Check for window events
-    event, values = window.read(timeout=100)  # Read with a timeout so the window is updated
-
-print('\n\nRPC Server has started')
-
-wallet_balance_xmr = '--.------------'
-wallet_balance_usd = '---.--'
-wallet_address = get_wallet_address()
-
-try:
-    wallet_balance_xmr, wallet_balance_usd, xmr_unlocked_balance = get_wallet_balance()
-except:
-    pass
-
-
-# GUI LAYOUT ###########################################################################################################
-def create_window():  # Creates the main window and returns it
-
-    # Define the window layout
+def create_main_window():  # Creates the main window and returns it
     layout = [
         [sg.Text("Monero Business Wallet", font=(font, 24), expand_x=True, justification='center', relief=sg.RELIEF_RIDGE, size=(None, 1), pad=(0, 0), text_color=main_text, background_color=ui_overall_background)],
         [sg.Text("Incoming payments will be recorded and forwarded automatically if the wallet remains open", font=(font, 10), expand_x=True, justification='center', background_color=ui_overall_background, pad=(0, 0))],
@@ -1098,8 +536,8 @@ def create_window():  # Creates the main window and returns it
                 sg.Column(
                     [
                         ########
-                        [sg.Text(f'        Balance:  ${wallet_balance_usd} USD', size=(25, 1), font=(font, 18), key='wallet_balance_in_usd', text_color=ui_sub_font, background_color=ui_overall_background)],
-                        [sg.Text(f'        XMR: {wallet_balance_xmr}', size=(25, 1), font=(font, 18), key='wallet_balance_in_xmr', background_color=ui_overall_background)],
+                        [sg.Text(f'        Balance:  ${cfg.wallet_balance_usd} USD', size=(25, 1), font=(font, 18), key='wallet_balance_in_usd', text_color=ui_sub_font, background_color=ui_overall_background)],
+                        [sg.Text(f'        XMR: {cfg.wallet_balance_xmr}', size=(25, 1), font=(font, 18), key='wallet_balance_in_xmr', background_color=ui_overall_background)],
                         [sg.Text('')],
                         [sg.HorizontalSeparator(pad=(90, 0))],
                         [sg.Text('')],
@@ -1149,11 +587,163 @@ def create_window():  # Creates the main window and returns it
         return sg.Window(title_bar_text, layout, margins=(20, 20), titlebar_icon='', titlebar_background_color=ui_overall_background, use_custom_titlebar=True, grab_anywhere=True, icon=icon, finalize=True)
 
 
-window.close()
+# THEME VARIABLES ######################################################################################################
+# Hex Colors
+ui_title_bar = '#222222'
+ui_overall_background = '#1D1D1D'
+ui_button_a = '#00A9AF'  # Updated to be a blue-green with grey
+ui_button_a_font = '#F0FFFF'
+ui_button_b = '#716F74'
+ui_button_b_font = '#FFF9FB'
+ui_main_font = '#F4F6EE'
+ui_sub_font = '#A7B2C7'
+ui_lines = '#696563'
+ui_outline = '#2E2E2E'
+ui_barely_visible = '#373737'
+ui_regular = '#FCFCFC'
+monero_grey = '#4c4c4c'
+monero_orange = '#00F6FF'  # Updated to be a blue-green
+monero_white = '#FFFFFF'
+monero_grayscale_top = '#7D7D7D'
+monero_grayscale_bottom = '#505050'
 
+# Set Theme
+icon = 'icon.ico'
+font = 'Nunito Sans'
+title_bar_text = ''
+sg.theme('DarkGrey2')
+# Modify the colors you want to change
+sg.theme_background_color(ui_overall_background)  # MAIN BACKGROUND COLOR
+sg.theme_button_color((ui_button_a_font, ui_button_a))  # whiteish, blackish
+sg.theme_text_color(monero_orange)  # HEADING TEXT AND DIVIDERS
+main_text = ui_main_font  # this lets separators be orange but text stay white
+subscription_text_color = ui_sub_font
+subscription_background_color = ui_overall_background  # ui_title_bar
+sg.theme_text_element_background_color(ui_title_bar)  # Text Heading Boxes
+sg.theme_element_background_color(ui_title_bar)  # subscriptions & transactions box color
+sg.theme_element_text_color(ui_sub_font)  # My Subscriptions Text Color
+sg.theme_input_background_color(ui_title_bar)
+sg.theme_input_text_color(monero_orange)
+sg.theme_border_width(0)
+sg.theme_slider_border_width(0)
+
+
+# START PROGRAM ########################################################################################################
+# BEGIN "Add Daemon/Node" SECTION
+if os.path.exists(cfg.node_filename):
+    with open(cfg.node_filename, 'r') as f:
+        node = f.readline().strip()  # read first line into 'node'
+else:
+    # welcome popup
+    sg.popup(cfg.welcome_popup_text, icon=icon, no_titlebar=True, background_color=ui_overall_background, grab_anywhere=True)
+
+    # Define the window's layout
+    layout = make_node_window_layout()
+
+    # Create the window
+    window = sg.Window('Node Input', layout, keep_on_top=True, no_titlebar=True, grab_anywhere=True)
+
+    # Event loop
+    while True:
+        event, values = window.read()
+        if event == 'add_node':
+            node = values['custom_node']
+
+            if '://' in node:
+                node = node.split('://')[1]
+
+            print(node)
+
+            if wallet.check_if_node_works(node):
+                window['custom_node'].update(value="Success!")
+
+                # Save the node to the file
+                with open(cfg.node_filename, 'w') as f:
+                    f.write(node + '\n')
+                break
+
+            else:
+                window['custom_node'].update(value="Node did not respond. Try Another.")
+
+        elif event == 'add_random_node':
+            print('Adding a random node. Please wait. \nThe software will seem to be frozen until a node is found.')
+            node = get_random_monero_node()
+            # Save the node to the file
+            with open(cfg.node_filename, 'w') as f:
+                f.write(node + '\n')
+            break
+
+        if event == sg.WIN_CLOSED:
+            break
+
+    window.close()
+
+host = node.split(':')[0]
+port = node.split(':')[1]
+
+daemon_rpc_url = f"http://{host}:{port}/json_rpc"
+# END "Add Daemon/Node" SECTION
+
+
+# BEGIN "Convert/Forward" SECTION
+# Note: cold_storage takes priority over convert. If both are specified, it should forward to cold storage only.
+if os.path.exists(cfg.cold_wallet_filename):
+    with open(cfg.cold_wallet_filename, 'r') as f:
+        cfg.cold_wallet = f.readline().strip()
+        if wallet.check_if_monero_wallet_address_is_valid_format(cfg.cold_wallet):
+            cfg.forward = True
+
+elif os.path.exists(cfg.convert_wallet_filename):
+    with open(cfg.convert_wallet_filename, 'r') as f:
+        data = f.read().strip()
+        data = json.loads(data)
+        cfg.convert_wallet = data['wallet']
+        cfg.convert_coin = data['coin']
+        cfg.convert_network = data['network']
+        if cfg.convert_wallet and cfg.convert_coin and cfg.convert_network:
+            cfg.convert = True
+            print(cfg.convert_wallet, cfg.convert_coin, cfg.convert_network)
+
+# If we haven't configured either, have the user configure one
+if not cfg.forward and not cfg.convert:
+    prompt_for_convert_forward_selection()
+
+# If both are configured, make sure "Forward" takes priority.
+if cfg.forward and cfg.convert:
+    cfg.convert = False
+# END "Convert/Forward" SECTION
+
+
+# START PREREQUISITES ##################################################################################################
+start_block_height = wallet.check_if_wallet_exists()  # auto-create one if it doesn't exist
+
+# Start Local RPC Server
+kill_monero_wallet_rpc()  # May be running from a previous launch
+threading.Thread(target=start_local_rpc_server_thread).start()
+
+# Make "Please Wait" Popup
+window = sg.Window("Waiting", layout=make_please_wait_popup(), finalize=True, keep_on_top=True, no_titlebar=True, grab_anywhere=True)
+
+# Wait until the RPC server starts
+while not cfg.rpc_is_ready:
+    # Check for window events
+    event, values = window.read(timeout=100)  # Read with a timeout so the window is updated
+print('\n\nRPC Server has started')
+
+wallet_address = wallet.get_wallet_address()  # Now that the RPC Server is running, get the wallet address
+
+try:  # Now that the RPC Server is running, get the wallet balance
+    cfg.wallet_balance_xmr, cfg.wallet_balance_usd, cfg.xmr_unlocked_balance = wallet.get_wallet_balance()
+except:
+    pass
+
+window.close()  # Close "Please Wait" Popup
+
+
+# Create the window
+window = create_main_window()
 
 # START THREADS ########################################################################################################
-
 # Continually update displayed GUI balance every 5 seconds
 threading.Thread(target=update_gui_balance).start()
 
@@ -1163,22 +753,21 @@ threading.Thread(target=check_for_new_transactions).start()
 # Continually auto-forward Monero if conditions are met every 2 min (every block)
 threading.Thread(target=autoforward_monero).start()
 
-time.sleep(1)
-
-# Create the window
-window = create_window()
 
 # MAIN EVENT LOOP ######################################################################################################
 while True:
     event, values = window.read()
 
+    # CLOSE BUTTON PRESSED
     if event == sg.WIN_CLOSED:
         break
 
+    # COPY ADDRESS BUTTON PRESSED
     elif event == 'copy_address':
         clipboard.copy(wallet_address)
         print(f'COPIED: {wallet_address}')
 
+    # SEND BUTTON PRESSED
     elif event == 'send':
         try:
             withdraw_to_wallet = values['withdraw_to_wallet']
@@ -1194,15 +783,14 @@ while True:
                     print("Cancelled wallet sweep!")
                     pass
                 elif "Yes, I am sure!" in choice:
-                    send_monero(destination_address=withdraw_to_wallet, amount=xmr_unlocked_balance)
+                    wallet.send_monero(destination_address=withdraw_to_wallet, amount=cfg.xmr_unlocked_balance)
                     print("The wallet has been swept!")
             else:
-                send_monero(destination_address=withdraw_to_wallet, amount=withdraw_amount)
+                wallet.send_monero(destination_address=withdraw_to_wallet, amount=withdraw_amount)
 
         except Exception as e:
             print(e)
             print('failed to send')
             window['withdraw_to_wallet'].update('Error: Enter a valid wallet address and XMR amount.')
 
-                
 window.close()
