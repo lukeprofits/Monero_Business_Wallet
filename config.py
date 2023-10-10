@@ -45,6 +45,7 @@ xmr_unlocked_balance = '--.------------'
 wallet_balance_xmr = '--.------------'
 wallet_balance_usd = '---.--'
 current_monero_price = 150.00
+wallet_address = ''
 
 # =====================
 # Amounts
