@@ -91,6 +91,15 @@ font = 'Nunito Sans'
 title_bar_text = ''
 
 # =====================
+# GUI Settings
+# =====================
+random_amounts = False  # Forward As Multiple Random Amounts
+random_delay = False  # Use Random Time Delay Before Forwarding
+wait_for_balance = False  # Do Not Forward Until Balance Is Over $100
+delay_days = 30
+wait_for_min_usd = 10
+
+# =====================
 # Longform Text
 # =====================
 welcome_popup_text = '''

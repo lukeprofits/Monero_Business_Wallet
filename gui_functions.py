@@ -23,18 +23,23 @@ import config as cfg
 
 
 # GUI LAYOUT FUNCTIONS #################################################################################################
-def make_layout_part_for_forwarding_to():
+def forwarding_to_section():
     if cfg.convert:  # Conversion Wallet
-        return [sg.Text(f'      Forwarding To:', size=(15, 1), font=(cfg.font, 14), pad=(10, 0), text_color=cfg.ui_sub_font, background_color=cfg.ui_overall_background), sg.Text(f'{cfg.convert_wallet}', size=(48, 1), font=(cfg.font, 14), pad=(10, 0), text_color=cfg.monero_orange, background_color=cfg.ui_overall_background)]
+        layout = [
+        [sg.Text(f'      Forwarding To:', size=(15, 1), font=(cfg.font, 14), pad=(10, 0), text_color=cfg.ui_sub_font, background_color=cfg.ui_overall_background), sg.Text(f'{cfg.convert_wallet}', size=(48, 1), font=(cfg.font, 14), pad=(10, 0), text_color=cfg.monero_orange, background_color=cfg.ui_overall_background)],
+        [sg.Text(f'                        ({cfg.convert_coin} on {cfg.convert_network} network)', size=(48, 1), font=(cfg.font, 14), text_color=cfg.monero_orange, background_color=cfg.ui_overall_background, justification='c')],
+        ]
+
     elif cfg.forward:  # Cold Storage
-        return [sg.Text(f'      Forwarding To:', size=(15, 1), font=(cfg.font, 14), pad=(10, 0), text_color=cfg.ui_sub_font, background_color=cfg.ui_overall_background), sg.Text(f'{cfg.cold_wallet}', size=(90, 1), font=(cfg.font, 10), pad=(10, 0), text_color=cfg.monero_orange, background_color=cfg.ui_overall_background)]
+        layout = [
+            [sg.Text(f'      Forwarding To:', size=(15, 1), font=(cfg.font, 14), pad=(10, 0), text_color=cfg.ui_sub_font, background_color=cfg.ui_overall_background), sg.Text(f'{cfg.cold_wallet}', size=(90, 1), font=(cfg.font, 10), pad=(10, 0), text_color=cfg.monero_orange, background_color=cfg.ui_overall_background)],
+        ]
 
-
-def make_layout_part_for_forwarding_to_2():
-    if cfg.convert:  # Conversion Wallet
-        return [sg.Text(f'                        ({cfg.convert_coin} on {cfg.convert_network} network)', size=(48, 1), font=(cfg.font, 14), text_color=cfg.monero_orange, background_color=cfg.ui_overall_background, justification='c')]
     else:
-        return []
+        layout = []
+
+    return layout
+
 
 def make_please_wait_popup():
     layout = [
@@ -186,58 +191,125 @@ def prompt_for_convert_forward_selection():
     window.close()
 
 
+def headline_section():
+    layout = [
+        [sg.Text("Monero Business Wallet", font=(cfg.font, 24), expand_x=True, justification='center',
+                 relief=sg.RELIEF_RIDGE, size=(None, 1), pad=(0, 0), text_color=cfg.main_text,
+                 background_color=cfg.ui_overall_background)],
+        [sg.Text("Incoming payments will be recorded and forwarded automatically if the wallet remains open",
+                 font=(cfg.font, 10), expand_x=True, justification='center', background_color=cfg.ui_overall_background,
+                 pad=(0, 0))],
+        [sg.Text("", font=(cfg.font, 8))],
+    ]
+    return layout
+
+
+def balance_section():
+    layout = [
+        [sg.Text(f'        Balance:  ${cfg.wallet_balance_usd} USD', size=(25, 1), font=(cfg.font, 18), key='wallet_balance_in_usd', text_color=cfg.ui_sub_font, background_color=cfg.ui_overall_background)],
+        [sg.Text(f'        XMR: {cfg.wallet_balance_xmr}', size=(25, 1), font=(cfg.font, 18), key='wallet_balance_in_xmr', background_color=cfg.ui_overall_background)],
+        [sg.Text('')],
+    ]
+    return layout
+
+
+def settings_section():
+    layout = [
+        [sg.Text('')],
+
+        [sg.Text('               ', background_color=cfg.ui_overall_background),
+         sg.Checkbox('Use Random Delay Before Forwarding. Max Days:', key='random_delay', default=cfg.random_delay, background_color=cfg.ui_overall_background),
+         sg.Spin(values=[i for i in range(1, 999)], initial_value=cfg.delay_days, size=(3, 1), key='delay_days', bind_return_key=True, enable_events=True, background_color=cfg.ui_overall_background)],
+
+        [sg.Text('               ', background_color=cfg.ui_overall_background),
+         sg.Checkbox('Do Not Forward Until Balance Is Over:  $', key='wait_for_balance', default=cfg.wait_for_balance, background_color=cfg.ui_overall_background),
+         sg.Spin(values=[i for i in range(1, 999999)], initial_value=cfg.wait_for_min_usd, size=(6, 1), key='wait_for_min_usd', bind_return_key=True, enable_events=True, background_color=cfg.ui_overall_background)],
+
+        [sg.Text('               ', background_color=cfg.ui_overall_background),
+         sg.Checkbox('Forward As Multiple Random Amounts', key='random_amounts', default=cfg.random_amounts, background_color=cfg.ui_overall_background)],
+    ]
+    return layout
+
+
+def deposit_section():
+    layout = [
+        [sg.Text('Deposit XMR:', size=(20, 1), font=(cfg.font, 18), justification='center', text_color=cfg.ui_sub_font,
+                 background_color=cfg.ui_overall_background)],
+        [sg.Column([
+            [sg.Image(generate_monero_qr(cfg.wallet_address), size=(147, 147), key='qr_code', pad=(10, 0))],
+            # Placeholder for the QR code image
+            [sg.Button("Copy Address", size=(16, 1), key='copy_address', pad=(10, 10))],
+        ],
+            element_justification='center', pad=(0, 0))],
+    ]
+    return layout
+
+
+def send_section():
+    layout = [
+        [sg.InputText(default_text='[ Enter a wallet address ]', key='withdraw_to_wallet', pad=(10, 10),
+                      justification='center', size=(46, 1)),
+         sg.InputText(default_text=' [ Enter an amount ]', key='withdraw_amount', pad=(10, 10), justification='center',
+                      size=(20, 1)),
+         sg.Button("Send", size=(8, 1), key='send', pad=(10, 10), button_color=(cfg.ui_button_b_font, cfg.ui_button_b))
+         ],
+    ]
+    return layout
+
+
 def create_main_window():  # Creates the main window and returns it
     layout = [
-        [sg.Text("Monero Business Wallet", font=(cfg.font, 24), expand_x=True, justification='center', relief=sg.RELIEF_RIDGE, size=(None, 1), pad=(0, 0), text_color=cfg.main_text, background_color=cfg.ui_overall_background)],
-        [sg.Text("Incoming payments will be recorded and forwarded automatically if the wallet remains open", font=(cfg.font, 10), expand_x=True, justification='center', background_color=cfg.ui_overall_background, pad=(0, 0))],
-        [sg.Text("", font=(cfg.font, 8))],
+        ######## TOP SIDE
+        # Title
+        *headline_section(),
+        ######## END TOP SIDE
             [
                 sg.Column(
                     [
-                        ########
-                        [sg.Text(f'        Balance:  ${cfg.wallet_balance_usd} USD', size=(25, 1), font=(cfg.font, 18), key='wallet_balance_in_usd', text_color=cfg.ui_sub_font, background_color=cfg.ui_overall_background)],
-                        [sg.Text(f'        XMR: {cfg.wallet_balance_xmr}', size=(25, 1), font=(cfg.font, 18), key='wallet_balance_in_xmr', background_color=cfg.ui_overall_background)],
-                        [sg.Text('')],
+                        ######## LEFT SIDE
+                        # Balances
+                        *balance_section(),
+                        # Seperator
                         [sg.HorizontalSeparator(pad=(90, 0))],
-                        [sg.Text('')],
-                        [sg.Text('               ', background_color=cfg.ui_overall_background), sg.Checkbox('Forward As Multiple Random Amounts', key='random_amounts', default=True, size=40, background_color=cfg.ui_overall_background)],
-                        [sg.Text('               ', background_color=cfg.ui_overall_background), sg.Checkbox('Use Random Time Delay Before Forwarding', key='random_delay', default=True, size=40, background_color=cfg.ui_overall_background)],
-                        [sg.Text('               ', background_color=cfg.ui_overall_background), sg.Checkbox('Do Not Forward Until Balance Is Over $100', key='wait_for_balance', default=False, size=40, background_color=cfg.ui_overall_background)],
-                        #[sg.Button("   Copy Wallet Address   ", size=(24, 1), key='copy_address', pad=(10, 10))],
-                        ########
+                        # The Checkboxes
+                        *settings_section(),
+                        ######## END LEFT SIDE
 
                     ], element_justification='center', expand_x=True, expand_y=True
                 ),
+
+                # Middle Separator
                 sg.VerticalSeparator(pad=(0, 10)),
+
                 sg.Column(
                     [
-                        ########
-                        [sg.Text('Deposit XMR:', size=(20, 1), font=(cfg.font, 18), justification='center', text_color=cfg.ui_sub_font, background_color=cfg.ui_overall_background)],
-                        [sg.Column([
-                            [sg.Image(generate_monero_qr(cfg.wallet_address), size=(147, 147), key='qr_code', pad=(10, 0))],  # Placeholder for the QR code image
-                            [sg.Button("Copy Address", size=(16, 1), key='copy_address', pad=(10, 10))],
-                            ],
-                            element_justification='center', pad=(0, 0))],
-                        ########
+                        ######## RIGHT SECTION
+                        # Deposit QR Code
+                        *deposit_section()
+                        ######## END RIGHT SECTION
+
                     ], expand_x=True, expand_y=True, element_justification='c'
                 )
             ],
+
             [sg.Text("", font=(cfg.font, 8), expand_x=True, justification='center', size=(None, 1), pad=(0, 0), text_color=cfg.main_text, background_color=cfg.ui_overall_background)],
 
-            ########
+            ######## BOTTOM SIDE
             [sg.Column([
-                make_layout_part_for_forwarding_to(),
-                make_layout_part_for_forwarding_to_2()
-                #[sg.InputText(default_text='[ Enter a wallet address ]', key='withdraw_to_wallet', pad=(10, 10), justification='center', size=(46, 1)),
-                #sg.InputText(default_text=' [ Enter an amount ]', key='withdraw_amount', pad=(10, 10), justification='center', size=(20, 1)),
-                #sg.Button("Send", size=(8, 1), key='send', pad=(10, 10), button_color=(cfg.ui_button_b_font, cfg.ui_button_b))
-                #],
+
+                # Forwarding/Converting
+                *forwarding_to_section(),
+
+                # Send Section
+                #*send_section(),
+
             ], element_justification='c', justification='center'),
                 sg.Text('', pad=(15, 5))],
-            ########
+            ######## END BOTTOM SIDE
 
             [sg.Text("", font=(cfg.font, 8), expand_x=True, justification='center', size=(None, 1), pad=(0, 0), text_color=cfg.main_text, background_color=cfg.ui_overall_background)],
     ]
+
     if platform.system() == 'Darwin':
         return sg.Window('Monero Business Wallet', layout, margins=(20, 20), titlebar_icon='', titlebar_background_color=cfg.ui_overall_background, use_custom_titlebar=False, grab_anywhere=True, icon="./icon.png", finalize=True)
     elif platform.system() == 'Linux':
@@ -263,3 +335,10 @@ def generate_monero_qr(wallet_address):
     else:
         print('Monero Address is not valid')
         return None
+
+
+def bind_checkboxes(window):
+    # Checkboxes do not generate an event, so we need to bind to the click
+    window['random_amounts'].bind('<ButtonRelease-1>', '')
+    window['random_delay'].bind('<ButtonRelease-1>', '')
+    window['wait_for_balance'].bind('<ButtonRelease-1>', '')

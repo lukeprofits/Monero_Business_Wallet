@@ -98,22 +98,38 @@ def kill_monero_wallet_rpc():
 
 
 # OTHER RANDOM FUNCTIONS ###############################################################################################
-def convert_or_forward():
-    # I'm super freaking tired. I think this works but review it later and delete this comment assuming it does.
-    if cfg.convert:
+def random_partial_amount(xmr_balance):
+    random_value = float(random.randint(100, 1000))
+    partial_amount = xmr_balance / random_value
+    print(f'Sending random amount {str(partial_amount)} XRM')
+    return partial_amount
+
+
+def convert_or_forward(xmr_wallet_balance_to_forward):
+    if cfg.random_delay:  # If Using Random Delay
+        random_delay = random.randint(1, (60 * 60 * 24 * cfg.delay_days))  # Sleep for 1 second to 1 month.
+        time.sleep(random_delay)
+        print(f'Waiting {(((random_delay/60)/60)/24)} Days Before Transfer')
+
+    if cfg.convert:  # If Converting
+        if cfg.random_amounts:  # If Using Random Amount
+            xmr_wallet_balance_to_forward = random_partial_amount(xmr_balance=xmr_wallet_balance_to_forward)
+
         swap_info = swap.with_sideshift(shift_to_coin=cfg.convert_coin, to_wallet=cfg.convert_wallet, on_network=cfg.convert_network, amount_to_convert=xmr_wallet_balance_to_forward)
         if swap_info:
             print(swap_info)
             write_swap_to_csv(swap_info=swap_info)  # Maybe also add a thing to include the IP we used.
-            # Optionally add a "check for success" but not sure if there is really a point.
-
+            # Optionally add a "check for success" but not sure if there is really much of a point.
         else:
             print('There was a problem, so we did not swap anything.')
 
-    elif cfg.forward:
+    elif cfg.forward:  # If Forwarding
+        if cfg.random_amounts:  # If Using Random Amount
+            xmr_wallet_balance_to_forward = random_partial_amount(xmr_balance=xmr_wallet_balance_to_forward)
+
         # Transfer what we have
         wallet.send_monero(destination_address=cfg.cold_wallet, amount=xmr_wallet_balance_to_forward)
-        pass
+
 
 def get_random_monero_node():
     response = requests.get('https://monero.fail/')
@@ -172,6 +188,12 @@ def write_swap_to_csv(swap_info, filename=cfg.swap_file):
         # Add timestamp to the beginning of the data
         data = [current_timestamp] + list(swap_info.values())
         writer.writerow(data)
+
+
+def write_settings_to_file(settings):
+    with open('settings.txt', 'w') as f:
+        json.dump(settings, f)
+    print('Wrote settings.')
 
 
 def write_transactions_to_csv(transactions, filename=cfg.received_transactions_file):
@@ -283,13 +305,13 @@ def autoforward_monero():
             xmr_wallet_balance_to_forward = wallet.get_wallet_balance_in_xmr_minus_amount(amount_in_usd=cfg.usd_amount_to_leave_in_wallet_for_tx_fees)
 
             if xmr_wallet_balance_to_forward > 0:
-                # DO "wait until over $100"
-                print(f'THIS IS WHAT WAIT FOR BALANCE IS: {str(window["wait_for_balance"].get())}')
-                if window['wait_for_balance'].get():
-                    # Make sure we have over $100
-                    if wallet.get_wallet_balance_in_xmr_minus_amount(amount_in_usd=(100 + cfg.usd_amount_to_leave_in_wallet_for_tx_fees)):  # Evaluates to False if we don't have enough
+                # DO "wait until over $X"
+                print(f'THIS IS WHAT WAIT FOR BALANCE IS: {str(cfg.wait_for_balance)}')
+                if cfg.wait_for_balance:
+                    # Make sure we have over $X
+                    if wallet.get_wallet_balance_in_xmr_minus_amount(amount_in_usd=(cfg.wait_for_min_usd + cfg.usd_amount_to_leave_in_wallet_for_tx_fees)):  # Evaluates to False if we don't have enough
                         # Are we converting, or forwarding?
-                        convert_or_forward()
+                        convert_or_forward(xmr_wallet_balance_to_forward=xmr_wallet_balance_to_forward)
 
                     else:
                         print('Balance not yet above forwarding limit.')
@@ -297,7 +319,7 @@ def autoforward_monero():
                 # DO NOT "wait until over $100"
                 else:
                     # Are we converting, or forwarding?
-                    convert_or_forward()
+                    convert_or_forward(xmr_wallet_balance_to_forward=xmr_wallet_balance_to_forward)
 
             # Not enough to bother transferring
             else:
@@ -315,6 +337,8 @@ def refresh_gui():
     global window
     window.close()
     window = gui.create_main_window()  # recreate the window to refresh the GUI
+
+    gui.bind_checkboxes(window=window)
 
 
 def make_transparent():
@@ -472,11 +496,37 @@ try:  # Now that the RPC Server is running, get the wallet balance
 except:
     pass
 
+
+# GET SETTINGS #########################################################################################################
+# Check if settings.txt exists and read it
+if os.path.exists('settings.txt'):
+    print('FOUND THE SETTINGS FILE')
+    with open(file='settings.txt', mode='r', encoding='utf-8') as f:
+        settings = json.load(f)
+        print(settings)
+        print(type(settings))
+        # Update our config file with these settings
+        cfg.random_amounts = settings["random_amounts"]
+        cfg.random_delay = settings["random_delay"]
+        cfg.delay_days = settings["delay_days"]
+        cfg.wait_for_balance = settings["wait_for_balance"]
+        print(cfg.wait_for_balance)
+
+else:
+    print('NO SETTING FILE!')
+    settings = {
+        "random_amounts": cfg.random_amounts,
+        "random_delay": cfg.random_delay,
+        "wait_for_balance": cfg.wait_for_balance,
+        "delay_days": cfg.delay_days
+    }
+
+
+# CREATE THE MAIN WINDOW ###############################################################################################
 window.close()  # Close "Please Wait" Popup
-
-
-# Create the window
 window = gui.create_main_window()
+gui.bind_checkboxes(window=window)
+
 
 # START THREADS ########################################################################################################
 # Continually update displayed GUI balance every 5 seconds
@@ -492,6 +542,7 @@ threading.Thread(target=autoforward_monero).start()
 # MAIN EVENT LOOP ######################################################################################################
 while True:
     event, values = window.read()
+    print(f"Event: {event}, Values: {values}")
 
     # CLOSE BUTTON PRESSED
     if event == sg.WIN_CLOSED:
@@ -501,6 +552,41 @@ while True:
     elif event == 'copy_address':
         clipboard.copy(cfg.wallet_address)
         print(f'COPIED: {cfg.wallet_address}')
+
+    # RANDOM AMOUNTS CHECKBOX
+    elif event == 'random_amounts':
+        cfg.random_amounts = window['random_amounts'].get()
+        print(f'Changed to: {cfg.random_amounts}')
+        settings["random_amounts"] = cfg.random_amounts
+        write_settings_to_file(settings=settings)
+
+    # RANDOM DELAY CHECKBOX
+    elif event == 'random_delay':
+        cfg.random_delay = window['random_delay'].get()
+        print(f'Changed to: {cfg.random_delay}')
+        settings["random_delay"] = cfg.random_delay
+        write_settings_to_file(settings=settings)
+
+    # DELAY DAYS NUMBER
+    elif event == 'delay_days':
+        cfg.delay_days = window['delay_days'].get()
+        print(f'Changed to: {cfg.delay_days}')
+        settings["delay_days"] = cfg.delay_days
+        write_settings_to_file(settings=settings)
+
+    # WAIT FOR BALANCE CHECKBOX
+    elif event == 'wait_for_balance':
+        cfg.wait_for_balance = window['wait_for_balance'].get()
+        print(f'Changed to: {cfg.wait_for_balance}')
+        settings["wait_for_balance"] = cfg.wait_for_balance
+        write_settings_to_file(settings=settings)
+
+    # MIN USD NUMBER
+    elif event == 'wait_for_min_usd':
+        cfg.wait_for_min_usd = window['wait_for_min_usd'].get()
+        print(f'Changed to: {cfg.wait_for_min_usd}')
+        settings["wait_for_min_usd"] = cfg.wait_for_min_usd
+        write_settings_to_file(settings=settings)
 
     # SEND BUTTON PRESSED
     elif event == 'send':
