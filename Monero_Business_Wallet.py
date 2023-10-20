@@ -306,13 +306,12 @@ def autoforward_monero():
 
             if xmr_wallet_balance_to_forward > 0:
                 # DO "wait until over $X"
-                print(f'THIS IS WHAT WAIT FOR BALANCE IS: {str(cfg.wait_for_balance)}')
+                #print(f'THIS IS WHAT WAIT FOR BALANCE IS: {str(cfg.wait_for_balance)}')
                 if cfg.wait_for_balance:
                     # Make sure we have over $X
                     if wallet.get_wallet_balance_in_xmr_minus_amount(amount_in_usd=(cfg.wait_for_min_usd + cfg.usd_amount_to_leave_in_wallet_for_tx_fees)):  # Evaluates to False if we don't have enough
                         # Are we converting, or forwarding?
                         convert_or_forward(xmr_wallet_balance_to_forward=xmr_wallet_balance_to_forward)
-
                     else:
                         print('Balance not yet above forwarding limit.')
 
@@ -474,7 +473,7 @@ if cfg.forward and cfg.convert:
 
 
 # START PREREQUISITES ##################################################################################################
-start_block_height = wallet.check_if_wallet_exists()  # auto-create one if it doesn't exist
+start_block_height = wallet.check_if_wallet_exists(daemon_rpc_url=daemon_rpc_url)  # auto-create one if it doesn't exist
 
 # Start Local RPC Server
 kill_monero_wallet_rpc()  # May be running from a previous launch

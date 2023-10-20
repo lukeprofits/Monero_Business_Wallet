@@ -39,10 +39,10 @@ def check_if_monero_wallet_address_is_valid_format(wallet_address):
     return True
 
 
-def check_if_wallet_exists():
+def check_if_wallet_exists(daemon_rpc_url):
     if not os.path.isfile(f"{cfg.wallet_name}.keys") or not os.path.isfile(cfg.wallet_name):
         # If either file doesn't exist
-        start_block_height = get_current_block_height()
+        start_block_height = get_current_block_height(daemon_rpc_url=daemon_rpc_url)
         create_wallet(wallet_name=cfg.wallet_name)
         return start_block_height
 
@@ -114,9 +114,7 @@ def make_integrated_address(payment_id, merchant_public_wallet_address):
         return integrated_address
 
 
-def get_current_block_height():
-    global daemon_rpc_url
-
+def get_current_block_height(daemon_rpc_url):
     # Set up the JSON-RPC request
     headers = {'content-type': 'application/json'}
     data = {
@@ -134,7 +132,6 @@ def get_current_block_height():
         block_height = response_data["result"]["height"]
         print(f'Block Height: {block_height}')
         return block_height
-
     else:
         return None
 
